@@ -26,7 +26,7 @@ repository = "https://github.com/ciresnave/mocopr"
 homepage = "https://github.com/ciresnave/mocopr"
 documentation = "https://docs.rs/mocopr"
 description = "A comprehensive Rust implementation of the Model Context Protocol (MCP)"
-keywords = ["mcp", "model-context-protocol", "ai", "llm", "jsonrpc"]
+keywords = ["mcp", "model-context", "ai", "llm", "jsonrpc"]
 categories = ["api-bindings", "network-programming"]
 
 # API Stability Versioning Strategy:
