@@ -97,11 +97,11 @@ name = "mocopr"
 path = "src/lib.rs"
 
 [dependencies]
-mocopr-core = { path = "mocopr-core" }
-mocopr-client = { path = "mocopr-client" }
-mocopr-server = { path = "mocopr-server" }
-mocopr-macros = { path = "mocopr-macros" }
-mocopr-rbac = { path = "mocopr-rbac" }
+mocopr-core = { version = "0.1.0", path = "mocopr-core" }
+mocopr-client = { version = "0.1.0", path = "mocopr-client" }
+mocopr-server = { version = "0.1.0", path = "mocopr-server" }
+mocopr-macros = { version = "0.1.0", path = "mocopr-macros" }
+mocopr-rbac = { version = "0.1.0", path = "mocopr-rbac" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

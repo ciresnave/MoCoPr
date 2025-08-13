@@ -10,8 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-mocopr-core = { path = "../mocopr-core" }
-mocopr-macros = { path = "../mocopr-macros" }
+mocopr-core = { version = "0.1.0", path = "../mocopr-core" }
+mocopr-macros = { version = "0.1.0", path = "../mocopr-macros" }
 
 # Core dependencies
 serde.workspace = true
