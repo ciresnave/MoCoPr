@@ -1512,7 +1512,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "mocopr-core",
- "mocopr-server",
  "proc-macro2",
  "quote",
  "serde",

@@ -23,4 +23,4 @@ serde_json = { workspace = true }
 async-trait = { workspace = true }
 url = { workspace = true }
 mocopr-core = { version = "0.1.0", path = "../mocopr-core" }
-mocopr-server = { version = "0.1.0", path = "../mocopr-server" }
+# mocopr-server = { version = "0.1.0", path = "../mocopr-server" }
