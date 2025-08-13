@@ -1,0 +1,329 @@
+//! Tests for resource-related types and functionality
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_resource_creation() {
+        let resource = Resource {
+            uri: "file:///test.txt".to_string(),
+            name: Some("Test File".to_string()),
+            description: Some("A test file resource".to_string()),
+            mime_type: Some("text/plain".to_string()),
+        };
+
+        assert_eq!(resource.uri, "file:///test.txt");
+        assert_eq!(resource.name, Some("Test File".to_string()));
+        assert_eq!(resource.description, Some("A test file resource".to_string()));
+        assert_eq!(resource.mime_type, Some("text/plain".to_string()));
+    }
+
+    #[test]
+    fn test_resource_serialization() {
+        let resource = Resource {
+            uri: "https://api.example.com/data".to_string(),
+            name: Some("API Data".to_string()),
+            description: Some("External API data source".to_string()),
+            mime_type: Some("application/json".to_string()),
+        };
+
+        let serialized = serde_json::to_string(&resource).unwrap();
+        let deserialized: Resource = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(resource.uri, deserialized.uri);
+        assert_eq!(resource.name, deserialized.name);
+        assert_eq!(resource.description, deserialized.description);
+        assert_eq!(resource.mime_type, deserialized.mime_type);
+    }
+
+    #[test]
+    fn test_resource_minimal() {
+        let resource = Resource {
+            uri: "mem://temp".to_string(),
+            name: None,
+            description: None,
+            mime_type: None,
+        };
+
+        let json_val = serde_json::to_value(&resource).unwrap();
+        assert_eq!(json_val["uri"], "mem://temp");
+        
+        // Optional fields should not be present when None
+        assert!(json_val.get("name").is_none());
+        assert!(json_val.get("description").is_none());
+        assert!(json_val.get("mimeType").is_none());
+    }
+
+    #[test]
+    fn test_text_content() {
+        let text_content = TextContent {
+            content_type: "text".to_string(),
+            text: "Hello, World!".to_string(),
+        };
+
+        assert_eq!(text_content.content_type, "text");
+        assert_eq!(text_content.text, "Hello, World!");
+
+        let json_val = serde_json::to_value(&text_content).unwrap();
+        assert_eq!(json_val["type"], "text");
+        assert_eq!(json_val["text"], "Hello, World!");
+    }
+
+    #[test]
+    fn test_image_content() {
+        let image_content = ImageContent {
+            content_type: "image".to_string(),
+            data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==".to_string(),
+            mime_type: "image/png".to_string(),
+        };
+
+        assert_eq!(image_content.content_type, "image");
+        assert_eq!(image_content.mime_type, "image/png");
+        assert!(!image_content.data.is_empty());
+
+        let json_val = serde_json::to_value(&image_content).unwrap();
+        assert_eq!(json_val["type"], "image");
+        assert_eq!(json_val["mimeType"], "image/png");
+        assert_eq!(json_val["data"], "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==");
+    }
+
+    #[test]
+    fn test_resource_contents_text() {
+        let contents = ResourceContents::Text(TextContent {
+            content_type: "text".to_string(),
+            text: "File contents here".to_string(),
+        });
+
+        match contents {
+            ResourceContents::Text(text) => {
+                assert_eq!(text.text, "File contents here");
+            }
+            _ => panic!("Expected Text variant"),
+        }
+    }
+
+    #[test]
+    fn test_resource_contents_image() {
+        let contents = ResourceContents::Image(ImageContent {
+            content_type: "image".to_string(),
+            data: "base64data".to_string(),
+            mime_type: "image/jpeg".to_string(),
+        });
+
+        match contents {
+            ResourceContents::Image(image) => {
+                assert_eq!(image.mime_type, "image/jpeg");
+                assert_eq!(image.data, "base64data");
+            }
+            _ => panic!("Expected Image variant"),
+        }
+    }
+
+    #[test]
+    fn test_list_resources_request() {
+        let request = ListResourcesRequest {
+            cursor: Some("page2".to_string()),
+        };
+
+        assert_eq!(request.cursor, Some("page2".to_string()));
+
+        let json_val = serde_json::to_value(&request).unwrap();
+        assert_eq!(json_val["cursor"], "page2");
+    }
+
+    #[test]
+    fn test_list_resources_response() {
+        let resources = vec![
+            Resource {
+                uri: "file:///doc1.txt".to_string(),
+                name: Some("Document 1".to_string()),
+                description: None,
+                mime_type: Some("text/plain".to_string()),
+            },
+            Resource {
+                uri: "file:///doc2.txt".to_string(),
+                name: Some("Document 2".to_string()),
+                description: Some("Second document".to_string()),
+                mime_type: Some("text/plain".to_string()),
+            },
+        ];
+
+        let response = ListResourcesResponse {
+            resources,
+            next_cursor: Some("next123".to_string()),
+        };
+
+        assert_eq!(response.resources.len(), 2);
+        assert_eq!(response.resources[0].uri, "file:///doc1.txt");
+        assert_eq!(response.resources[1].name, Some("Document 2".to_string()));
+        assert_eq!(response.next_cursor, Some("next123".to_string()));
+    }
+
+    #[test]
+    fn test_read_resource_request() {
+        let request = ReadResourceRequest {
+            uri: "file:///important.txt".to_string(),
+        };
+
+        assert_eq!(request.uri, "file:///important.txt");
+
+        let json_val = serde_json::to_value(&request).unwrap();
+        assert_eq!(json_val["uri"], "file:///important.txt");
+    }
+
+    #[test]
+    fn test_read_resource_response() {
+        let content = TextContent {
+            content_type: "text".to_string(),
+            text: "This is the file content".to_string(),
+        };
+
+        let response = ReadResourceResponse {
+            contents: vec![ResourceContents::Text(content)],
+            _meta: Some(ResponseMetadata::default()),
+        };
+
+        assert_eq!(response.contents.len(), 1);
+        match &response.contents[0] {
+            ResourceContents::Text(text) => {
+                assert_eq!(text.text, "This is the file content");
+            }
+            _ => panic!("Expected Text content"),
+        }
+    }
+
+    #[test]
+    fn test_resource_template() {
+        let template = ResourceTemplate {
+            uri_template: "file:///docs/{filename}".to_string(),
+            name: Some("Document Template".to_string()),
+            description: Some("Template for document access".to_string()),
+            mime_type: Some("text/plain".to_string()),
+        };
+
+        assert_eq!(template.uri_template, "file:///docs/{filename}");
+        assert_eq!(template.name, Some("Document Template".to_string()));
+
+        let json_val = serde_json::to_value(&template).unwrap();
+        assert_eq!(json_val["uriTemplate"], "file:///docs/{filename}");
+    }
+
+    #[test]
+    fn test_resource_uri_schemes() {
+        let test_cases = vec![
+            ("file:///path/to/file.txt", "Local file"),
+            ("http://example.com/api/data", "HTTP resource"),
+            ("https://secure.api.com/data", "HTTPS resource"),
+            ("ftp://ftp.example.com/file.zip", "FTP resource"),
+            ("mem://cache/item", "Memory resource"),
+            ("db://table/record/123", "Database resource"),
+        ];
+
+        for (uri, description) in test_cases {
+            let resource = Resource {
+                uri: uri.to_string(),
+                name: Some(description.to_string()),
+                description: Some(format!("Test for {}", description)),
+                mime_type: None,
+            };
+
+            assert_eq!(resource.uri, uri);
+            assert_eq!(resource.name, Some(description.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_mime_type_variations() {
+        let mime_types = vec![
+            "text/plain",
+            "text/html",
+            "application/json",
+            "application/xml",
+            "image/png",
+            "image/jpeg",
+            "video/mp4",
+            "audio/mpeg",
+            "application/pdf",
+            "application/octet-stream",
+        ];
+
+        for mime_type in mime_types {
+            let resource = Resource {
+                uri: format!("file:///test.{}", mime_type.split('/').last().unwrap_or("dat")),
+                name: Some(format!("Test {}", mime_type)),
+                description: None,
+                mime_type: Some(mime_type.to_string()),
+            };
+
+            assert_eq!(resource.mime_type, Some(mime_type.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_resource_content_serialization() {
+        // Test text content serialization
+        let text_content = ResourceContents::Text(TextContent {
+            content_type: "text".to_string(),
+            text: "Sample text content".to_string(),
+        });
+
+        let serialized = serde_json::to_string(&text_content).unwrap();
+        let deserialized: ResourceContents = serde_json::from_str(&serialized).unwrap();
+
+        match (text_content, deserialized) {
+            (ResourceContents::Text(orig), ResourceContents::Text(deser)) => {
+                assert_eq!(orig.text, deser.text);
+            }
+            _ => panic!("Content type mismatch after serialization"),
+        }
+
+        // Test image content serialization
+        let image_content = ResourceContents::Image(ImageContent {
+            content_type: "image".to_string(),
+            data: "dGVzdCBpbWFnZSBkYXRh".to_string(), // "test image data" in base64
+            mime_type: "image/png".to_string(),
+        });
+
+        let serialized = serde_json::to_string(&image_content).unwrap();
+        let deserialized: ResourceContents = serde_json::from_str(&serialized).unwrap();
+
+        match (image_content, deserialized) {
+            (ResourceContents::Image(orig), ResourceContents::Image(deser)) => {
+                assert_eq!(orig.data, deser.data);
+                assert_eq!(orig.mime_type, deser.mime_type);
+            }
+            _ => panic!("Content type mismatch after serialization"),
+        }
+    }
+
+    #[test]
+    fn test_resource_edge_cases() {
+        // Test empty URI (should be valid but unusual)
+        let resource = Resource {
+            uri: "".to_string(),
+            name: None,
+            description: None,
+            mime_type: None,
+        };
+
+        let serialized = serde_json::to_string(&resource).unwrap();
+        let deserialized: Resource = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.uri, "");
+
+        // Test very long URI
+        let long_uri = format!("file:///{}", "a".repeat(1000));
+        let resource = Resource {
+            uri: long_uri.clone(),
+            name: None,
+            description: None,
+            mime_type: None,
+        };
+
+        let serialized = serde_json::to_string(&resource).unwrap();
+        let deserialized: Resource = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.uri, long_uri);
+    }
+}

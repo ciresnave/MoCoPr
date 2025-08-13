@@ -1,0 +1,364 @@
+//! Tests for prompt-related types and functionality
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_prompt_creation() {
+        let prompt = Prompt {
+            name: "code_review".to_string(),
+            description: Some("Review code for best practices".to_string()),
+            arguments: Some(vec![
+                PromptArgument {
+                    name: "language".to_string(),
+                    description: Some("Programming language".to_string()),
+                    required: Some(true),
+                },
+                PromptArgument {
+                    name: "code".to_string(),
+                    description: Some("Code to review".to_string()),
+                    required: Some(true),
+                },
+            ]),
+        };
+
+        assert_eq!(prompt.name, "code_review");
+        assert_eq!(prompt.description, Some("Review code for best practices".to_string()));
+        assert!(prompt.arguments.is_some());
+        assert_eq!(prompt.arguments.as_ref().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_prompt_argument() {
+        let arg = PromptArgument {
+            name: "input_text".to_string(),
+            description: Some("Text to process".to_string()),
+            required: Some(true),
+        };
+
+        assert_eq!(arg.name, "input_text");
+        assert_eq!(arg.description, Some("Text to process".to_string()));
+        assert_eq!(arg.required, Some(true));
+    }
+
+    #[test]
+    fn test_prompt_serialization() {
+        let prompt = Prompt {
+            name: "summarize".to_string(),
+            description: Some("Summarize text content".to_string()),
+            arguments: Some(vec![
+                PromptArgument {
+                    name: "text".to_string(),
+                    description: Some("Text to summarize".to_string()),
+                    required: Some(true),
+                },
+                PromptArgument {
+                    name: "max_length".to_string(),
+                    description: Some("Maximum summary length".to_string()),
+                    required: Some(false),
+                },
+            ]),
+        };
+
+        let serialized = serde_json::to_string(&prompt).unwrap();
+        let deserialized: Prompt = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(prompt.name, deserialized.name);
+        assert_eq!(prompt.description, deserialized.description);
+        assert_eq!(prompt.arguments.as_ref().unwrap().len(), 
+                   deserialized.arguments.as_ref().unwrap().len());
+    }
+
+    #[test]
+    fn test_prompt_minimal() {
+        let prompt = Prompt {
+            name: "simple_prompt".to_string(),
+            description: None,
+            arguments: None,
+        };
+
+        let json_val = serde_json::to_value(&prompt).unwrap();
+        assert_eq!(json_val["name"], "simple_prompt");
+        assert!(json_val.get("description").is_none());
+        assert!(json_val.get("arguments").is_none());
+    }
+
+    #[test]
+    fn test_list_prompts_request() {
+        let request = ListPromptsRequest {
+            cursor: Some("page3".to_string()),
+        };
+
+        assert_eq!(request.cursor, Some("page3".to_string()));
+
+        let json_val = serde_json::to_value(&request).unwrap();
+        assert_eq!(json_val["cursor"], "page3");
+    }
+
+    #[test]
+    fn test_list_prompts_response() {
+        let prompts = vec![
+            Prompt {
+                name: "translate".to_string(),
+                description: Some("Translate text".to_string()),
+                arguments: Some(vec![
+                    PromptArgument {
+                        name: "text".to_string(),
+                        description: Some("Text to translate".to_string()),
+                        required: Some(true),
+                    },
+                    PromptArgument {
+                        name: "target_language".to_string(),
+                        description: Some("Target language".to_string()),
+                        required: Some(true),
+                    },
+                ]),
+            },
+            Prompt {
+                name: "explain".to_string(),
+                description: Some("Explain a concept".to_string()),
+                arguments: None,
+            },
+        ];
+
+        let response = ListPromptsResponse {
+            prompts,
+            next_cursor: Some("cursor456".to_string()),
+        };
+
+        assert_eq!(response.prompts.len(), 2);
+        assert_eq!(response.prompts[0].name, "translate");
+        assert_eq!(response.prompts[1].name, "explain");
+        assert_eq!(response.next_cursor, Some("cursor456".to_string()));
+    }
+
+    #[test]
+    fn test_get_prompt_request() {
+        let args = json!({
+            "topic": "machine learning",
+            "level": "beginner"
+        });
+
+        let request = GetPromptRequest {
+            name: "explain_concept".to_string(),
+            arguments: Some(args.clone()),
+        };
+
+        assert_eq!(request.name, "explain_concept");
+        assert_eq!(request.arguments, Some(args));
+    }
+
+    #[test]
+    fn test_prompt_message() {
+        let message = PromptMessage {
+            role: Role::User,
+            content: TextContent {
+                content_type: "text".to_string(),
+                text: "Please explain quantum computing".to_string(),
+            },
+        };
+
+        assert_eq!(message.role, Role::User);
+        assert_eq!(message.content.text, "Please explain quantum computing");
+    }
+
+    #[test]
+    fn test_get_prompt_response() {
+        let messages = vec![
+            PromptMessage {
+                role: Role::User,
+                content: TextContent {
+                    content_type: "text".to_string(),
+                    text: "Explain this code".to_string(),
+                },
+            },
+            PromptMessage {
+                role: Role::Assistant,
+                content: TextContent {
+                    content_type: "text".to_string(),
+                    text: "This code implements a binary search algorithm...".to_string(),
+                },
+            },
+        ];
+
+        let response = GetPromptResponse {
+            description: Some("Code explanation prompt".to_string()),
+            messages,
+            _meta: Some(ResponseMetadata::default()),
+        };
+
+        assert_eq!(response.messages.len(), 2);
+        assert_eq!(response.messages[0].role, Role::User);
+        assert_eq!(response.messages[1].role, Role::Assistant);
+        assert_eq!(response.description, Some("Code explanation prompt".to_string()));
+    }
+
+    #[test]
+    fn test_role_serialization() {
+        let user_role = Role::User;
+        let assistant_role = Role::Assistant;
+
+        let user_json = serde_json::to_value(&user_role).unwrap();
+        let assistant_json = serde_json::to_value(&assistant_role).unwrap();
+
+        assert_eq!(user_json, "user");
+        assert_eq!(assistant_json, "assistant");
+
+        // Test deserialization
+        let user_deser: Role = serde_json::from_value(user_json).unwrap();
+        let assistant_deser: Role = serde_json::from_value(assistant_json).unwrap();
+
+        assert_eq!(user_deser, Role::User);
+        assert_eq!(assistant_deser, Role::Assistant);
+    }
+
+    #[test]
+    fn test_prompt_argument_optional() {
+        let optional_arg = PromptArgument {
+            name: "format".to_string(),
+            description: Some("Output format".to_string()),
+            required: Some(false),
+        };
+
+        let required_arg = PromptArgument {
+            name: "content".to_string(),
+            description: Some("Content to process".to_string()),
+            required: Some(true),
+        };
+
+        assert_eq!(optional_arg.required, Some(false));
+        assert_eq!(required_arg.required, Some(true));
+    }
+
+    #[test]
+    fn test_complex_prompt_arguments() {
+        let prompt = Prompt {
+            name: "generate_report".to_string(),
+            description: Some("Generate a comprehensive report".to_string()),
+            arguments: Some(vec![
+                PromptArgument {
+                    name: "data_source".to_string(),
+                    description: Some("Source of data for the report".to_string()),
+                    required: Some(true),
+                },
+                PromptArgument {
+                    name: "format".to_string(),
+                    description: Some("Report format (pdf, html, markdown)".to_string()),
+                    required: Some(false),
+                },
+                PromptArgument {
+                    name: "include_charts".to_string(),
+                    description: Some("Whether to include visual charts".to_string()),
+                    required: Some(false),
+                },
+                PromptArgument {
+                    name: "sections".to_string(),
+                    description: Some("Specific sections to include".to_string()),
+                    required: Some(false),
+                },
+            ]),
+        };
+
+        assert_eq!(prompt.arguments.as_ref().unwrap().len(), 4);
+        
+        let required_args: Vec<_> = prompt.arguments.as_ref().unwrap()
+            .iter()
+            .filter(|arg| arg.required == Some(true))
+            .collect();
+        assert_eq!(required_args.len(), 1);
+        assert_eq!(required_args[0].name, "data_source");
+    }
+
+    #[test]
+    fn test_prompt_message_content_variations() {
+        let simple_text = PromptMessage {
+            role: Role::User,
+            content: TextContent {
+                content_type: "text".to_string(),
+                text: "Simple question".to_string(),
+            },
+        };
+
+        let complex_text = PromptMessage {
+            role: Role::Assistant,
+            content: TextContent {
+                content_type: "text".to_string(),
+                text: "Here's a detailed explanation with multiple paragraphs...\n\nThis includes examples and code snippets.".to_string(),
+            },
+        };
+
+        assert_eq!(simple_text.content.text, "Simple question");
+        assert!(complex_text.content.text.contains("detailed explanation"));
+        assert!(complex_text.content.text.contains("code snippets"));
+    }
+
+    #[test]
+    fn test_prompt_edge_cases() {
+        // Test prompt with empty name (should be valid but unusual)
+        let prompt = Prompt {
+            name: "".to_string(),
+            description: Some("Anonymous prompt".to_string()),
+            arguments: None,
+        };
+
+        let serialized = serde_json::to_string(&prompt).unwrap();
+        let deserialized: Prompt = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.name, "");
+
+        // Test prompt with very long name
+        let long_name = "a".repeat(1000);
+        let prompt = Prompt {
+            name: long_name.clone(),
+            description: None,
+            arguments: None,
+        };
+
+        let serialized = serde_json::to_string(&prompt).unwrap();
+        let deserialized: Prompt = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.name, long_name);
+    }
+
+    #[test]
+    fn test_prompt_argument_edge_cases() {
+        // Test argument with empty description
+        let arg = PromptArgument {
+            name: "test_arg".to_string(),
+            description: Some("".to_string()),
+            required: None,
+        };
+
+        let json_val = serde_json::to_value(&arg).unwrap();
+        assert_eq!(json_val["description"], "");
+
+        // Test argument with no required field specified
+        let arg = PromptArgument {
+            name: "optional_unspecified".to_string(),
+            description: None,
+            required: None,
+        };
+
+        let json_val = serde_json::to_value(&arg).unwrap();
+        assert!(json_val.get("required").is_none());
+    }
+
+    #[test]
+    fn test_prompt_message_serialization() {
+        let message = PromptMessage {
+            role: Role::User,
+            content: TextContent {
+                content_type: "text".to_string(),
+                text: "Test message content".to_string(),
+            },
+        };
+
+        let serialized = serde_json::to_string(&message).unwrap();
+        let deserialized: PromptMessage = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(message.role, deserialized.role);
+        assert_eq!(message.content.text, deserialized.content.text);
+        assert_eq!(message.content.content_type, deserialized.content.content_type);
+    }
+}

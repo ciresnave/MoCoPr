@@ -1,0 +1,26 @@
+[package]
+name = "mocopr-macros"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Procedural macros for MoCoPr (Model Context Protocol)"
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+url = { workspace = true }
+mocopr-core = { path = "../mocopr-core" }
+mocopr-server = { path = "../mocopr-server" }

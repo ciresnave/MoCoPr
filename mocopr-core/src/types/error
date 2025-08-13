@@ -1,0 +1,355 @@
+//! Tests for error handling and edge cases
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_mcp_error_creation() {
+        let error = McpError {
+            code: -32602,
+            message: "Invalid params".to_string(),
+            data: Some(json!({"param": "missing_required_field"})),
+        };
+
+        assert_eq!(error.code, -32602);
+        assert_eq!(error.message, "Invalid params");
+        assert!(error.data.is_some());
+    }
+
+    #[test]
+    fn test_mcp_error_serialization() {
+        let error = McpError {
+            code: -32600,
+            message: "Invalid Request".to_string(),
+            data: None,
+        };
+
+        let serialized = serde_json::to_string(&error).unwrap();
+        let deserialized: McpError = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(error.code, deserialized.code);
+        assert_eq!(error.message, deserialized.message);
+        assert_eq!(error.data, deserialized.data);
+    }
+
+    #[test]
+    fn test_json_rpc_error_codes() {
+        let test_cases = vec![
+            (-32700, "Parse error"),
+            (-32600, "Invalid Request"),
+            (-32601, "Method not found"),
+            (-32602, "Invalid params"),
+            (-32603, "Internal error"),
+            (-32000, "Server error"),
+        ];
+
+        for (code, message) in test_cases {
+            let error = McpError {
+                code,
+                message: message.to_string(),
+                data: None,
+            };
+
+            assert_eq!(error.code, code);
+            assert_eq!(error.message, message);
+        }
+    }
+
+    #[test]
+    fn test_error_with_complex_data() {
+        let error_data = json!({
+            "error_type": "validation_error",
+            "field": "input_schema",
+            "details": {
+                "expected": "object",
+                "received": "string"
+            },
+            "suggestions": [
+                "Wrap the value in an object",
+                "Use proper JSON schema format"
+            ]
+        });
+
+        let error = McpError {
+            code: -32602,
+            message: "Schema validation failed".to_string(),
+            data: Some(error_data.clone()),
+        };
+
+        assert_eq!(error.data, Some(error_data));
+    }
+
+    #[test]
+    fn test_error_response_format() {
+        let error = McpError {
+            code: -32601,
+            message: "Method not found".to_string(),
+            data: Some(json!({"method": "unknown_method"})),
+        };
+
+        let json_val = serde_json::to_value(&error).unwrap();
+        
+        assert_eq!(json_val["code"], -32601);
+        assert_eq!(json_val["message"], "Method not found");
+        assert_eq!(json_val["data"]["method"], "unknown_method");
+    }
+
+    #[test]
+    fn test_request_validation_errors() {
+        // Test invalid JSON-RPC version
+        let invalid_request = json!({
+            "jsonrpc": "1.0",  // Should be "2.0"
+            "method": "test",
+            "id": 1
+        });
+
+        // Test missing method
+        let missing_method = json!({
+            "jsonrpc": "2.0",
+            "id": 1
+            // method is missing
+        });
+
+        // Test invalid id type (should be string, number, or null)
+        let invalid_id = json!({
+            "jsonrpc": "2.0",
+            "method": "test",
+            "id": {"invalid": "object"}
+        });
+
+        // These should all be considered invalid requests
+        // The actual validation would happen in the protocol layer
+        assert_eq!(invalid_request["jsonrpc"], "1.0");
+        assert!(missing_method.get("method").is_none());
+        assert!(invalid_id["id"].is_object());
+    }
+
+    #[test]
+    fn test_tool_call_errors() {
+        // Test tool not found
+        let tool_not_found = McpError {
+            code: -32601,
+            message: "Tool not found".to_string(),
+            data: Some(json!({"tool_name": "nonexistent_tool"})),
+        };
+
+        // Test invalid tool arguments
+        let invalid_args = McpError {
+            code: -32602,
+            message: "Invalid tool arguments".to_string(),
+            data: Some(json!({
+                "tool_name": "calculator",
+                "missing_params": ["a", "b"],
+                "provided_params": ["operation"]
+            })),
+        };
+
+        // Test tool execution error
+        let execution_error = McpError {
+            code: -32000,
+            message: "Tool execution failed".to_string(),
+            data: Some(json!({
+                "tool_name": "file_reader",
+                "error": "Permission denied",
+                "file_path": "/restricted/file.txt"
+            })),
+        };
+
+        assert_eq!(tool_not_found.code, -32601);
+        assert_eq!(invalid_args.code, -32602);
+        assert_eq!(execution_error.code, -32000);
+    }
+
+    #[test]
+    fn test_resource_access_errors() {
+        // Test resource not found
+        let resource_not_found = McpError {
+            code: -32601,
+            message: "Resource not found".to_string(),
+            data: Some(json!({"uri": "file:///nonexistent.txt"})),
+        };
+
+        // Test access denied
+        let access_denied = McpError {
+            code: -32000,
+            message: "Access denied".to_string(),
+            data: Some(json!({
+                "uri": "file:///protected.txt",
+                "reason": "Insufficient permissions"
+            })),
+        };
+
+        // Test malformed URI
+        let malformed_uri = McpError {
+            code: -32602,
+            message: "Invalid URI format".to_string(),
+            data: Some(json!({"uri": "not_a_valid_uri"})),
+        };
+
+        assert_eq!(resource_not_found.code, -32601);
+        assert_eq!(access_denied.code, -32000);
+        assert_eq!(malformed_uri.code, -32602);
+    }
+
+    #[test]
+    fn test_prompt_errors() {
+        // Test prompt not found
+        let prompt_not_found = McpError {
+            code: -32601,
+            message: "Prompt not found".to_string(),
+            data: Some(json!({"prompt_name": "nonexistent_prompt"})),
+        };
+
+        // Test missing required arguments
+        let missing_args = McpError {
+            code: -32602,
+            message: "Missing required prompt arguments".to_string(),
+            data: Some(json!({
+                "prompt_name": "code_review",
+                "missing_args": ["code", "language"],
+                "provided_args": ["style"]
+            })),
+        };
+
+        assert_eq!(prompt_not_found.code, -32601);
+        assert_eq!(missing_args.code, -32602);
+    }
+
+    #[test]
+    fn test_transport_errors() {
+        // Test connection errors
+        let connection_lost = McpError {
+            code: -32000,
+            message: "Connection lost".to_string(),
+            data: Some(json!({"transport": "stdio"})),
+        };
+
+        // Test timeout errors
+        let timeout_error = McpError {
+            code: -32000,
+            message: "Request timeout".to_string(),
+            data: Some(json!({
+                "timeout_ms": 5000,
+                "method": "slow_operation"
+            })),
+        };
+
+        assert_eq!(connection_lost.code, -32000);
+        assert_eq!(timeout_error.code, -32000);
+    }
+
+    #[test]
+    fn test_validation_edge_cases() {
+        // Test extremely long error messages
+        let long_message = "x".repeat(10000);
+        let error = McpError {
+            code: -32000,
+            message: long_message.clone(),
+            data: None,
+        };
+
+        assert_eq!(error.message.len(), 10000);
+
+        // Test empty error message
+        let empty_error = McpError {
+            code: -32000,
+            message: "".to_string(),
+            data: None,
+        };
+
+        assert_eq!(empty_error.message, "");
+    }
+
+    #[test]
+    fn test_error_data_variations() {
+        // Test with string data
+        let string_data = McpError {
+            code: -32000,
+            message: "Error with string data".to_string(),
+            data: Some(json!("Simple error description")),
+        };
+
+        // Test with array data
+        let array_data = McpError {
+            code: -32000,
+            message: "Multiple validation errors".to_string(),
+            data: Some(json!([
+                "Field 'name' is required",
+                "Field 'age' must be positive",
+                "Field 'email' must be valid"
+            ])),
+        };
+
+        // Test with null data
+        let null_data = McpError {
+            code: -32000,
+            message: "Error with null data".to_string(),
+            data: Some(json!(null)),
+        };
+
+        assert!(string_data.data.is_some());
+        assert!(array_data.data.as_ref().unwrap().is_array());
+        assert!(null_data.data.as_ref().unwrap().is_null());
+    }
+
+    #[test]
+    fn test_custom_error_codes() {
+        // Test custom application-specific error codes
+        let custom_errors = vec![
+            (-40000, "Custom domain error"),
+            (-40001, "Rate limit exceeded"),
+            (-40002, "Invalid license"),
+            (-40003, "Feature not available"),
+        ];
+
+        for (code, message) in custom_errors {
+            let error = McpError {
+                code,
+                message: message.to_string(),
+                data: Some(json!({"error_category": "application"})),
+            };
+
+            assert!(error.code <= -32000); // Custom error codes should be <= -32000
+            assert_eq!(error.message, message);
+        }
+    }
+
+    #[test]
+    fn test_error_serialization_roundtrip() {
+        let original_error = McpError {
+            code: -32602,
+            message: "Complex validation error".to_string(),
+            data: Some(json!({
+                "validation_errors": [
+                    {
+                        "field": "name",
+                        "error": "required"
+                    },
+                    {
+                        "field": "age",
+                        "error": "must_be_positive",
+                        "value": -5
+                    }
+                ],
+                "error_count": 2
+            })),
+        };
+
+        // Serialize and deserialize
+        let serialized = serde_json::to_string(&original_error).unwrap();
+        let deserialized: McpError = serde_json::from_str(&serialized).unwrap();
+
+        // Verify all fields are preserved
+        assert_eq!(original_error.code, deserialized.code);
+        assert_eq!(original_error.message, deserialized.message);
+        assert_eq!(original_error.data, deserialized.data);
+
+        // Verify nested data structure
+        let data = deserialized.data.unwrap();
+        assert_eq!(data["error_count"], 2);
+        assert_eq!(data["validation_errors"].as_array().unwrap().len(), 2);
+    }
+}

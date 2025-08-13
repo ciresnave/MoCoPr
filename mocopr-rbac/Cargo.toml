@@ -1,0 +1,52 @@
+[package]
+name = "mocopr-rbac"
+version = "0.1.0"
+edition = "2024"
+authors.workspace = true
+license.workspace = true
+description = "Role-based access control integration for MoCoPr MCP servers"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README.md"
+keywords = ["mcp", "protocol", "rbac", "authorization", "security"]
+categories = ["authentication", "web-programming"]
+
+[dependencies]
+# Core MoCoPr dependencies
+mocopr-core = { version = "0.1.0", path = "../mocopr-core" }
+mocopr-server = { version = "0.1.0", path = "../mocopr-server" }
+
+# RBAC functionality
+role-system = { version = "0.1", features = ["async", "persistence", "audit"] }
+
+# Async support
+tokio = { version = "1.0", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+
+# Time handling for conditional permissions
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID for subject IDs
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.0"
+
+[features]
+default = ["async", "persistence", "audit"]
+async = []
+persistence = []
+audit = []

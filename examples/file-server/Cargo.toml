@@ -1,0 +1,17 @@
+[package]
+name = "file-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mocopr-server = { path = "../../mocopr-server" }
+mocopr-core = { path = "../../mocopr-core" }
+mocopr-macros = { path = "../../mocopr-macros" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+async-trait = { workspace = true }
+url = { workspace = true }

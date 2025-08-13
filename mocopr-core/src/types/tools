@@ -1,0 +1,281 @@
+//! Tests for tool-related types and functionality
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::*;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_tool_parameter_creation() {
+        let param = ToolParameter {
+            param_type: "string".to_string(),
+            description: Some("A test parameter".to_string()),
+            required: Some(true),
+            default: None,
+            examples: Some(vec![json!("example_value")]),
+        };
+
+        assert_eq!(param.param_type, "string");
+        assert_eq!(param.description, Some("A test parameter".to_string()));
+        assert_eq!(param.required, Some(true));
+        assert!(param.default.is_none());
+        assert_eq!(param.examples, Some(vec![json!("example_value")]));
+    }
+
+    #[test]
+    fn test_tool_parameter_serialization() {
+        let param = ToolParameter {
+            param_type: "number".to_string(),
+            description: Some("A numeric parameter".to_string()),
+            required: Some(false),
+            default: Some(json!(42)),
+            examples: None,
+        };
+
+        let serialized = serde_json::to_string(&param).unwrap();
+        let deserialized: ToolParameter = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(param.param_type, deserialized.param_type);
+        assert_eq!(param.description, deserialized.description);
+        assert_eq!(param.required, deserialized.required);
+        assert_eq!(param.default, deserialized.default);
+        assert_eq!(param.examples, deserialized.examples);
+    }
+
+    #[test]
+    fn test_tool_parameter_json_schema_compliance() {
+        let param = ToolParameter {
+            param_type: "object".to_string(),
+            description: Some("An object parameter".to_string()),
+            required: Some(true),
+            default: None,
+            examples: None,
+        };
+
+        let json_val = serde_json::to_value(&param).unwrap();
+        
+        // Check that "type" field is properly renamed
+        assert_eq!(json_val["type"], "object");
+        assert_eq!(json_val["description"], "An object parameter");
+        assert_eq!(json_val["required"], true);
+        
+        // Check that None fields are not serialized
+        assert!(json_val.get("default").is_none());
+        assert!(json_val.get("examples").is_none());
+    }
+
+    #[test]
+    fn test_tool_creation() {
+        let tool = Tool {
+            name: "test_tool".to_string(),
+            description: Some("A test tool".to_string()),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "param1": {
+                        "type": "string",
+                        "description": "First parameter"
+                    }
+                },
+                "required": ["param1"]
+            }),
+        };
+
+        assert_eq!(tool.name, "test_tool");
+        assert_eq!(tool.description, Some("A test tool".to_string()));
+        assert!(tool.input_schema.is_object());
+    }
+
+    #[test]
+    fn test_tool_serialization() {
+        let tool = Tool {
+            name: "calculator".to_string(),
+            description: Some("A simple calculator".to_string()),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "operation": {"type": "string"},
+                    "a": {"type": "number"},
+                    "b": {"type": "number"}
+                },
+                "required": ["operation", "a", "b"]
+            }),
+        };
+
+        let serialized = serde_json::to_string(&tool).unwrap();
+        let deserialized: Tool = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(tool.name, deserialized.name);
+        assert_eq!(tool.description, deserialized.description);
+        assert_eq!(tool.input_schema, deserialized.input_schema);
+    }
+
+    #[test]
+    fn test_tool_mcp_compliance() {
+        let tool = Tool {
+            name: "file_reader".to_string(),
+            description: Some("Reads file contents".to_string()),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path to read"
+                    }
+                },
+                "required": ["path"]
+            }),
+        };
+
+        let json_val = serde_json::to_value(&tool).unwrap();
+        
+        // Check MCP-required fields
+        assert_eq!(json_val["name"], "file_reader");
+        assert_eq!(json_val["description"], "Reads file contents");
+        assert_eq!(json_val["inputSchema"]["type"], "object");
+        assert!(json_val["inputSchema"]["properties"].is_object());
+        assert!(json_val["inputSchema"]["required"].is_array());
+    }
+
+    #[test]
+    fn test_list_tools_request() {
+        let request = ListToolsRequest {
+            cursor: Some("next_page".to_string()),
+        };
+
+        assert_eq!(request.cursor, Some("next_page".to_string()));
+
+        let json_val = serde_json::to_value(&request).unwrap();
+        assert_eq!(json_val["cursor"], "next_page");
+    }
+
+    #[test]
+    fn test_list_tools_response() {
+        let tools = vec![
+            Tool {
+                name: "tool1".to_string(),
+                description: None,
+                input_schema: json!({}),
+            },
+            Tool {
+                name: "tool2".to_string(),
+                description: Some("Second tool".to_string()),
+                input_schema: json!({"type": "object"}),
+            },
+        ];
+
+        let response = ListToolsResponse {
+            tools,
+            next_cursor: Some("cursor123".to_string()),
+        };
+
+        assert_eq!(response.tools.len(), 2);
+        assert_eq!(response.tools[0].name, "tool1");
+        assert_eq!(response.tools[1].name, "tool2");
+        assert_eq!(response.next_cursor, Some("cursor123".to_string()));
+    }
+
+    #[test]
+    fn test_call_tool_request() {
+        let args = json!({
+            "operation": "add",
+            "a": 5,
+            "b": 3
+        });
+
+        let request = CallToolRequest {
+            name: "calculator".to_string(),
+            arguments: Some(args.clone()),
+        };
+
+        assert_eq!(request.name, "calculator");
+        assert_eq!(request.arguments, Some(args));
+    }
+
+    #[test]
+    fn test_call_tool_response() {
+        let result = json!({
+            "result": 8,
+            "operation": "add"
+        });
+
+        let response = CallToolResponse {
+            content: vec![TextContent {
+                content_type: "text".to_string(),
+                text: "Operation completed successfully".to_string(),
+            }],
+            is_error: Some(false),
+            _meta: Some(ResponseMetadata::default()),
+        };
+
+        assert_eq!(response.content.len(), 1);
+        assert_eq!(response.content[0].content_type, "text");
+        assert_eq!(response.is_error, Some(false));
+    }
+
+    #[test]
+    fn test_tool_parameter_edge_cases() {
+        // Test minimal parameter
+        let minimal_param = ToolParameter {
+            param_type: "boolean".to_string(),
+            description: None,
+            required: None,
+            default: None,
+            examples: None,
+        };
+
+        let serialized = serde_json::to_string(&minimal_param).unwrap();
+        let json_val: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        
+        // Only type should be present
+        assert_eq!(json_val["type"], "boolean");
+        assert!(json_val.get("description").is_none());
+        assert!(json_val.get("required").is_none());
+        assert!(json_val.get("default").is_none());
+        assert!(json_val.get("examples").is_none());
+    }
+
+    #[test]
+    fn test_complex_tool_schema() {
+        let complex_schema = json!({
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "content": {"type": "string"}
+                        },
+                        "required": ["path"]
+                    }
+                },
+                "options": {
+                    "type": "object",
+                    "properties": {
+                        "recursive": {"type": "boolean", "default": false},
+                        "max_depth": {"type": "integer", "minimum": 1}
+                    }
+                }
+            },
+            "required": ["files"]
+        });
+
+        let tool = Tool {
+            name: "bulk_file_processor".to_string(),
+            description: Some("Process multiple files with options".to_string()),
+            input_schema: complex_schema.clone(),
+        };
+
+        // Test that complex schemas are preserved
+        let serialized = serde_json::to_string(&tool).unwrap();
+        let deserialized: Tool = serde_json::from_str(&serialized).unwrap();
+        
+        assert_eq!(deserialized.input_schema, complex_schema);
+        assert_eq!(deserialized.input_schema["properties"]["files"]["type"], "array");
+        assert_eq!(deserialized.input_schema["properties"]["options"]["properties"]["recursive"]["default"], false);
+    }
+}

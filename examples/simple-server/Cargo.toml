@@ -1,0 +1,19 @@
+[package]
+name = "simple-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+mocopr-server = { path = "../../mocopr-server" }
+mocopr-core = { path = "../../mocopr-core" }
+tokio.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+[[bin]]
+name = "simple-server"
+path = "src/main.rs"

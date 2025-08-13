@@ -1,0 +1,63 @@
+# Deny certain crates
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+deny = [
+  # Crates with known security vulnerabilities
+  { name = "openssl", version = "< 0.10.55" },
+
+  # Discourage synchronous HTTP clients
+  { name = "reqwest", version = "< 0.11", reason = "Use async version" },
+
+  # Prevent accidental inclusion of test utilities in production
+  { name = "quickcheck", reason = "Test utility, should not be in production" },
+]
+
+skip = [
+  # Allow multiple versions for these crates during transition
+  { name = "syn", version = "*" },
+]
+
+skip-tree = [
+  # Skip checking dependencies of build tools
+  { name = "criterion", version = "*" },
+]
+
+[licenses]
+# Accept copyleft licenses
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-DFS-2016",
+]
+
+# Deny GNU licenses in production
+deny = ["GPL-2.0", "GPL-3.0", "AGPL-3.0"]
+
+exceptions = [
+  # Allow specific GPL-licensed crates if needed
+  # { allow = ["GPL-2.0"], name = "some-crate" },
+]
+
+[advisories]
+# Configuration for security advisories
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "deny"
+notice = "warn"
+
+ignore = [
+  # Ignore specific advisories if they don't apply to our usage
+  # "RUSTSEC-2023-0001",
+]
+
+[sources]
+# Ensure all crates come from crates.io
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

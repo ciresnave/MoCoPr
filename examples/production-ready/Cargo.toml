@@ -1,0 +1,37 @@
+[package]
+name = "production-ready-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+mocopr-server = { path = "../../mocopr-server" }
+mocopr-core = { path = "../../mocopr-core" }
+mocopr-macros = { path = "../../mocopr-macros" }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+anyhow.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+clap = { version = "4.0", features = ["derive"] }
+config = "0.13"
+prometheus = "0.13"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = [
+  "cors",
+  "trace",
+  "timeout",
+  "limit",
+] }
+governor = "0.6"
+jsonwebtoken = "9.0"
+bcrypt = "0.15"
+async-trait.workspace = true
+
+[[bin]]
+name = "production-server"
+path = "src/main.rs"

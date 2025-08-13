@@ -1,0 +1,133 @@
+[workspace]
+resolver = "2"
+members = [
+    "mocopr-core",
+    "mocopr-client",
+    "mocopr-server",
+    "mocopr-macros",
+    "mocopr-rbac",
+    "examples/simple-server",
+    "examples/simple-client",
+    "examples/file-server",
+    "examples/calculator-server",
+    "examples/rbac-example",
+    "examples/rbac-simple",
+    "examples/performance-analysis",
+    "examples/production-ready",
+    "examples/websocket-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Eric Evans <ciresnave@gmail.com>"]
+repository = "https://github.com/ciresnave/mocopr"
+homepage = "https://github.com/ciresnave/mocopr"
+documentation = "https://docs.rs/mocopr"
+description = "A comprehensive Rust implementation of the Model Context Protocol (MCP)"
+keywords = ["mcp", "model-context-protocol", "ai", "llm", "jsonrpc"]
+categories = ["api-bindings", "network-programming"]
+
+# API Stability Versioning Strategy:
+# - 0.x.y: Development phase, breaking changes allowed in minor versions
+# - 1.x.y: Stable API, semantic versioning enforced strictly
+# - Major version increment: Breaking API changes
+# - Minor version increment: New features, backward compatible
+# - Patch version increment: Bug fixes, no new features
+#
+# Current Status: 0.1.0 - Initial development release
+# Stability: EXPERIMENTAL - APIs may change without notice
+# Target 1.0: Q4 2025 - Stable API with semantic versioning guarantees
+#
+# For detailed API stability guarantees, see docs/API_STABILITY.md
+
+[workspace.dependencies]
+# Core dependencies
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+url = { version = "2.0", features = ["serde"] }
+async-trait = "0.1"
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# HTTP/WebSocket transport
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tokio-tungstenite = "0.23"
+smallvec = { version = "1.15.1", features = ["serde"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+axum = "0.7"
+
+# Process/stdio transport
+tokio-process = "0.2"
+
+# Macros
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+
+# Testing
+tokio-test = "0.4"
+
+# Benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
+rayon = "1.0"
+num_cpus = "1.16"
+
+[package]
+name = "mocopr"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+name = "mocopr"
+path = "src/lib.rs"
+
+[dependencies]
+mocopr-core = { path = "mocopr-core" }
+mocopr-client = { path = "mocopr-client" }
+mocopr-server = { path = "mocopr-server" }
+mocopr-macros = { path = "mocopr-macros" }
+mocopr-rbac = { path = "mocopr-rbac" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tempfile = "3.12.0"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio-test = { workspace = true }
+url = { workspace = true }
+smallvec = "1.13"
+anyhow = { workspace = true }
+futures = { workspace = true }
+criterion = { workspace = true }
+rayon = { workspace = true }
+# Additional test dependencies
+async-trait = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tokio-tungstenite = { workspace = true }
+wiremock = "0.6"
+
+[[bench]]
+name = "protocol_benchmarks"
+harness = false
+
+[[bench]]
+name = "transport_benchmarks"
+harness = false

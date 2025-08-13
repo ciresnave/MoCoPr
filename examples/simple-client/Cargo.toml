@@ -1,0 +1,19 @@
+[package]
+name = "simple-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+mocopr-client = { path = "../../mocopr-client" }
+mocopr-core = { path = "../../mocopr-core" }
+tokio.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+[[bin]]
+name = "simple-client"
+path = "src/main.rs"
