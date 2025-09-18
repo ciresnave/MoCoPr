@@ -65,8 +65,8 @@ pub enum Error {
     Protocol(#[from] ProtocolError),
 
     /// JSON serialization/deserialization error.
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+    #[error("JSON error: {0}")]
+    Json(String),
 
     /// The request is malformed or violates the protocol specification.
     #[error("Invalid request: {0}")]
@@ -135,6 +135,12 @@ pub enum Error {
     /// Catch-all for other error types.
     #[error("Other error: {0}")]
     Other(#[from] anyhow::Error),
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Error::Json(err.to_string())
+    }
 }
 
 /// Transport-specific errors.
