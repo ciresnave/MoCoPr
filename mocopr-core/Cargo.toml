@@ -9,6 +9,11 @@ description = "Core types and protocol implementation for MoCoPr (Model Context 
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+default = ["serde-json-standard"]
+simd-json-performance = ["simd-json"]
+serde-json-standard = []
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
@@ -24,6 +29,8 @@ tokio.workspace = true
 reqwest.workspace = true
 tokio-tungstenite.workspace = true
 smallvec = { version = "1.15.1", features = ["serde"] }
+simd-json = { version = "0.13.10", features = ["serde_impl"], optional = true }
+bytes = "1.6.0"
 
 [dev-dependencies]
 tokio-test.workspace = true

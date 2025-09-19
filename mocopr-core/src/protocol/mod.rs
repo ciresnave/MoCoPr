@@ -3,7 +3,7 @@
 //! This module provides high-level protocol handling for MCP communications,
 //! including message routing, capability negotiation, and error handling.
 
-use crate::{Error, Result, types::*};
+use crate::{utils::json, Error, Result, types::*};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -118,7 +118,7 @@ impl Protocol {
 
     /// Parse a JSON-RPC message from string
     pub fn parse_message(message: &str) -> Result<JsonRpcMessage> {
-        let value: Value = serde_json::from_str(message)?;
+        let value: Value = json::from_str(message)?;
 
         // Check if it's a request, response, or notification
         if value.get("method").is_some() {
@@ -145,11 +145,20 @@ impl Protocol {
     /// Serialize a JSON-RPC message to string
     pub fn serialize_message(message: &JsonRpcMessage) -> Result<String> {
         match message {
-            JsonRpcMessage::Request(req) => serde_json::to_string(req),
-            JsonRpcMessage::Response(resp) => serde_json::to_string(resp),
-            JsonRpcMessage::Notification(notif) => serde_json::to_string(notif),
+            JsonRpcMessage::Request(req) => json::to_string(req),
+            JsonRpcMessage::Response(resp) => json::to_string(resp),
+            JsonRpcMessage::Notification(notif) => json::to_string(notif),
         }
-        .map_err(Into::into)
+    }
+
+    /// Serialize a JSON-RPC message to a buffer
+    pub fn serialize_message_to_buffer(
+        message: &JsonRpcMessage,
+        buffer: &mut bytes::BytesMut,
+    ) -> Result<()> {
+        let s = Self::serialize_message(message)?;
+        buffer.extend_from_slice(s.as_bytes());
+        Ok(())
     }
 
     /// Convert an error to a JSON-RPC error
@@ -199,8 +208,10 @@ impl Protocol {
     }
 }
 
+use serde::Serialize;
 /// Unified JSON-RPC message type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum JsonRpcMessage {
     /// A JSON-RPC request message with a method to call and optional parameters
     Request(JsonRpcRequest),
@@ -211,6 +222,40 @@ pub enum JsonRpcMessage {
 }
 
 impl JsonRpcMessage {
+    /// Creates a new success response message.
+    pub fn success<T: Serialize>(id: Option<RequestId>, result: T) -> Self {
+        JsonRpcMessage::Response(JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: Some(serde_json::to_value(result).unwrap()),
+            error: None,
+        })
+    }
+
+    /// Creates a new error response message.
+    pub fn error(id: Option<RequestId>, code: i32, message: impl Into<String>) -> Self {
+        JsonRpcMessage::Response(JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code,
+                message: message.into(),
+                data: None,
+            }),
+        })
+    }
+
+    /// Creates a new error response from an `Error`.
+    pub fn from_error(id: Option<RequestId>, error: Error) -> Self {
+        let json_rpc_error = Protocol::error_to_jsonrpc(&error);
+        JsonRpcMessage::Response(JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(json_rpc_error),
+        })
+    }
     /// Get the message ID if it exists
     pub fn id(&self) -> Option<&RequestId> {
         match self {

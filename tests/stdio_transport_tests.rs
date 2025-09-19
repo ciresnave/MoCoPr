@@ -1,8 +1,3 @@
-//! Integration tests for stdio transport
-//!
-//! These tests verify that the stdio transport layer works correctly
-//! for communicating with external processes.
-
 use anyhow::Result;
 use mocopr_core::transport::{Transport, stdio::StdioTransport};
 use std::process::Stdio;
@@ -19,15 +14,23 @@ async fn test_stdio_transport_creation() {
 
 #[tokio::test]
 async fn test_stdio_transport_from_process() -> Result<()> {
-    // Create an echo process (using Powershell on Windows)
-    let mut cmd = Command::new("powershell.exe");
-    cmd.args([
-        "-Command",
-        "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
-    ])
-    .stdin(Stdio::piped())
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped());
+    // Create an echo process
+    let mut cmd = if cfg!(target_os = "windows") {
+        let mut cmd = Command::new("powershell.exe");
+        cmd.args([
+            "-Command",
+            "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
+        ]);
+        cmd
+    } else {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "while read line; do echo \"Echo: $line\"; done"]);
+        cmd
+    };
+
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
     let mut child = cmd.spawn()?;
 
@@ -65,20 +68,14 @@ async fn test_stdio_transport_from_process() -> Result<()> {
 
 #[tokio::test]
 async fn test_stdio_transport_spawn() -> Result<()> {
-    // Skip this test if not on Windows
-    if !cfg!(target_os = "windows") {
-        return Ok(());
-    }
-
     // Spawn a process for testing
-    let mut transport = StdioTransport::spawn(
-        "powershell.exe",
-        &[
-            "-Command",
-            "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
-        ],
-    )
-    .await?;
+    let (command, args) = if cfg!(target_os = "windows") {
+        ("powershell.exe", vec!["-Command", "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }"])
+    } else {
+        ("sh", vec!["-c", "while read line; do echo \"Echo: $line\"; done"])
+    };
+
+    let mut transport = StdioTransport::spawn(command, &args.iter().map(|s| s.to_string()).collect::<Vec<_>>()).await?;
 
     assert!(transport.is_connected());
 
@@ -102,20 +99,14 @@ async fn test_stdio_transport_spawn() -> Result<()> {
 
 #[tokio::test]
 async fn test_stdio_transport_multiple_messages() -> Result<()> {
-    // Skip this test if not on Windows
-    if !cfg!(target_os = "windows") {
-        return Ok(());
-    }
-
     // Spawn a process for testing
-    let mut transport = StdioTransport::spawn(
-        "powershell.exe",
-        &[
-            "-Command",
-            "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
-        ],
-    )
-    .await?;
+    let (command, args) = if cfg!(target_os = "windows") {
+        ("powershell.exe", vec!["-Command", "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }"])
+    } else {
+        ("sh", vec!["-c", "while read line; do echo \"Echo: $line\"; done"])
+    };
+
+    let mut transport = StdioTransport::spawn(command, &args.iter().map(|s| s.to_string()).collect::<Vec<_>>()).await?;
 
     // Send multiple messages
     for i in 1..=5 {
@@ -160,26 +151,19 @@ async fn test_stdio_transport_error_handling() -> Result<()> {
 #[tokio::test]
 async fn test_stdio_transport_spawn_invalid_command() {
     // Try to spawn a non-existent command
-    let result = StdioTransport::spawn("nonexistent_command_12345", Vec::<String>::new()).await;
+    let result = StdioTransport::spawn("nonexistent_command_12345", &[""; 0]).await;
     assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_stdio_transport_kill() -> Result<()> {
-    // Skip this test if not on Windows
-    if !cfg!(target_os = "windows") {
-        return Ok(());
-    }
-
     // Spawn a process for testing
-    let mut transport = StdioTransport::spawn(
-        "powershell.exe",
-        &[
-            "-Command",
-            "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
-        ],
-    )
-    .await?;
+    let (command, args) = if cfg!(target_os = "windows") {
+        ("powershell.exe", vec!["-Command", "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }"])
+    } else {
+        ("sh", vec!["-c", "sleep 5"])
+    };
+    let mut transport = StdioTransport::spawn(command, &args.iter().map(|s| s.to_string()).collect::<Vec<_>>()).await?;
 
     // Kill the process
     transport.kill().await?;

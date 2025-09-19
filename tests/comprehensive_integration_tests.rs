@@ -266,6 +266,10 @@ async fn verify_resource_response_structure(response: &ResourcesReadResponse) ->
                     assert!(!image_content.data.is_empty());
                     println!("Image data size: {} bytes", image_content.data.len());
                 }
+                Content::StructuredError(_) => {
+                    // Handle structured error, for now just acknowledge it
+                    println!("Received structured error");
+                }
             }
         }
     }

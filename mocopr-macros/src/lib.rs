@@ -19,6 +19,30 @@ pub fn derive_tool(input: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Attribute macro for easy server setup
+#[proc_macro_attribute]
+pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let mut user_main = parse_macro_input!(input as ItemFn);
+    let user_main_name = &user_main.sig.ident;
+
+    // Rename the user's main function
+    let new_user_main_name = syn::Ident::new(&format!("__{}_unwrapped", user_main_name), user_main_name.span());
+    user_main.sig.ident = new_user_main_name.clone();
+
+    let expanded = quote::quote! {
+        #user_main
+
+        fn main() -> anyhow::Result<()> {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()?
+                .block_on(async { #new_user_main_name().await })
+        }
+    };
+
+    expanded.into()
+}
+
 /// Derive macro for automatically implementing ResourceHandler
 #[proc_macro_derive(Resource, attributes(resource))]
 pub fn derive_resource(input: TokenStream) -> TokenStream {

@@ -83,6 +83,8 @@ pub enum RequestId {
     String(String),
     /// Numeric identifier
     Number(i64),
+    /// Null identifier
+    Null,
 }
 
 impl From<String> for RequestId {
@@ -114,6 +116,7 @@ impl std::fmt::Display for RequestId {
         match self {
             RequestId::String(s) => write!(f, "{s}"),
             RequestId::Number(n) => write!(f, "{n}"),
+            RequestId::Null => write!(f, "null"),
         }
     }
 }
@@ -380,6 +383,42 @@ pub enum Content {
     /// other visual elements that need to be included in messages or resources.
     #[serde(rename = "image")]
     Image(ImageContent),
+
+    /// Structured error content for providing detailed error information.
+    ///
+    /// This content type allows tools and resources to return structured
+    /// error information instead of plain text, which can be more easily
+    /// parsed and handled by clients.
+    #[serde(rename = "error")]
+    StructuredError(StructuredErrorContent),
+}
+
+/// Structured error content
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StructuredErrorContent {
+    /// Error code
+    pub code: String,
+    /// Error message
+    pub message: String,
+    /// Optional status code
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<u16>,
+}
+
+impl StructuredErrorContent {
+    /// Creates a new structured error content instance
+    ///
+    /// # Arguments
+    /// * `code` - The error code
+    /// * `message` - The error message
+    /// * `status` - Optional status code
+    pub fn new(code: impl Into<String>, message: impl Into<String>, status: Option<u16>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            status,
+        }
+    }
 }
 
 impl From<TextContent> for Content {
