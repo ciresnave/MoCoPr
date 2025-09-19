@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use mocopr_core::ToolExecutor;
 use mocopr_macros::Tool;
 use mocopr_server::prelude::*;
@@ -6,6 +6,7 @@ use reqwest::Client;
 use serde_json::Value;
 use std::sync::Arc;
 use tracing::info;
+use url::Url;
 
 /// A tool that fetches the content of a URL.
 #[derive(Tool)]
@@ -20,6 +21,13 @@ impl HttpGetTool {
     fn new(client: Arc<Client>) -> Self {
         Self { client }
     }
+
+    /// Validates the URL format.
+    fn validate_url(url: &str) -> Result<()> {
+        Url::parse(url)
+            .map(|_| ())
+            .map_err(|e| anyhow!("Invalid URL format: {}", e))
+    }
 }
 
 #[async_trait::async_trait]
@@ -33,11 +41,21 @@ impl ToolExecutor for HttpGetTool {
         let url = match args.get("url").and_then(|v| v.as_str()) {
             Some(url) => url,
             None => {
-                return Ok(ToolsCallResponse::error(vec![Content::Text(
-                    TextContent::new("Missing required parameter: url"),
+                return Ok(ToolsCallResponse::error(vec![Content::StructuredError(
+                    StructuredErrorContent::new(
+                        "missing_parameter",
+                        "Missing required parameter: url",
+                        None,
+                    ),
                 )]));
             }
         };
+
+        if let Err(e) = Self::validate_url(url) {
+            return Ok(ToolsCallResponse::error(vec![Content::StructuredError(
+                StructuredErrorContent::new("invalid_url", e.to_string(), None),
+            )]));
+        }
 
         info!("Fetching URL: {}", url);
 
@@ -48,18 +66,30 @@ impl ToolExecutor for HttpGetTool {
                         Ok(text) => Ok(ToolsCallResponse::success(vec![Content::Text(
                             TextContent::new(&text),
                         )])),
-                        Err(e) => Ok(ToolsCallResponse::error(vec![Content::Text(
-                            TextContent::new(&format!("Failed to read response text: {}", e)),
+                        Err(e) => Ok(ToolsCallResponse::error(vec![Content::StructuredError(
+                            StructuredErrorContent::new(
+                                "read_response_text_error",
+                                &format!("Failed to read response text: {}", e),
+                                Some(response.status().as_u16()),
+                            ),
                         )])),
                     }
                 } else {
-                    Ok(ToolsCallResponse::error(vec![Content::Text(
-                        TextContent::new(&format!("Request failed with status: {}", response.status())),
+                    Ok(ToolsCallResponse::error(vec![Content::StructuredError(
+                        StructuredErrorContent::new(
+                            "http_error",
+                            &format!("Request failed with status: {}", response.status()),
+                            Some(response.status().as_u16()),
+                        ),
                     )]))
                 }
             }
-            Err(e) => Ok(ToolsCallResponse::error(vec![Content::Text(
-                TextContent::new(&format!("Failed to send request: {}", e)),
+            Err(e) => Ok(ToolsCallResponse::error(vec![Content::StructuredError(
+                StructuredErrorContent::new(
+                    "request_failed",
+                    &format!("Failed to send request: {}", e),
+                    None,
+                ),
             )])),
         }
     }

@@ -150,16 +150,17 @@ impl McpServer {
         });
 
         // Run the session
-        tokio::select! {
+        let result = tokio::select! {
             res = session.run() => {
-                let _ = session_events.await;
                 res
             },
             _ = self.shutdown_rx.clone().changed() => {
                 info!("Graceful shutdown initiated for stdio transport");
                 Ok(())
             }
-        }
+        };
+        let _ = session_events.await;
+        result
     }
 
     /// Run the server with configured transports
@@ -309,7 +310,8 @@ async fn handle_mcp_method(
         None => {
             return Ok(Some(JsonRpcMessage::Response(JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
-                id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+                id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null))
+                    .unwrap_or(RequestId::Null),
                 result: None,
                 error: Some(JsonRpcError {
                     code: -32600,
@@ -453,13 +455,15 @@ async fn handle_mcp_method(
     let response = match result {
         Ok(value) => JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
-            id: serde_json::from_value(id.cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+            id: serde_json::from_value(id.cloned().unwrap_or(serde_json::Value::Null))
+                .unwrap_or(RequestId::Null),
             result: Some(value),
             error: None,
         },
         Err(e) => JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
-            id: serde_json::from_value(id.cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+            id: serde_json::from_value(id.cloned().unwrap_or(serde_json::Value::Null))
+                .unwrap_or(RequestId::Null),
             result: None,
             error: Some(JsonRpcError {
                 code: match &e {
@@ -510,7 +514,7 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
                                                         Ok(Some(JsonRpcMessage::Response(
                                                             JsonRpcResponse {
                                                                 jsonrpc: "2.0".to_string(),
-                                                                id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+                                                                id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap_or(RequestId::Null),
                                                                 result: Some(serde_json::to_value(init_response).unwrap()),
                                                                 error: None,
                                                             },
@@ -519,7 +523,7 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
                                                     Err(e) => Ok(Some(JsonRpcMessage::Response(
                                                         JsonRpcResponse {
                                                             jsonrpc: "2.0".to_string(),
-                                                            id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+                                                            id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap_or(RequestId::Null),
                                                             result: None,
                                                             error: Some(JsonRpcError {
                                                                 code: -32603,
@@ -533,7 +537,7 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
                                             Err(e) => Ok(Some(JsonRpcMessage::Response(
                                                 JsonRpcResponse {
                                                     jsonrpc: "2.0".to_string(),
-                                                    id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+                                                    id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap_or(RequestId::Null),
                                                     result: None,
                                                     error: Some(JsonRpcError {
                                                         code: -32602,
@@ -547,7 +551,7 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
                                         // Send error for non-initialize message before init
                                         Ok(Some(JsonRpcMessage::Response(JsonRpcResponse {
                                             jsonrpc: "2.0".to_string(),
-                                            id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+                                            id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap_or(RequestId::Null),
                                             result: None,
                                             error: Some(JsonRpcError {
                                                 code: -32002,
@@ -559,7 +563,7 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
                                 } else {
                                     Ok(Some(JsonRpcMessage::Response(JsonRpcResponse {
                                         jsonrpc: "2.0".to_string(),
-                                        id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap(),
+                                        id: serde_json::from_value(json_msg.get("id").cloned().unwrap_or(serde_json::Value::Null)).unwrap_or(RequestId::Null),
                                         result: None,
                                         error: Some(JsonRpcError {
                                             code: -32600,
