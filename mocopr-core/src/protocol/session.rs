@@ -1,7 +1,7 @@
 //! Session management for MCP connections
 
 use super::*;
-use crate::{Error, Result, transport::Transport, utils::Utils};
+use crate::{Error, Result, transport::Transport};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, mpsc};
@@ -270,7 +270,7 @@ impl Session {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "initialize".to_string(),
-            params: Some(Utils::to_json_value(&InitializeRequest {
+            params: Some(serde_json::to_value(&InitializeRequest {
                 protocol_version: Protocol::latest_version().to_string(),
                 capabilities: client_capabilities.clone(),
                 client_info: client_info.clone(),
@@ -290,7 +290,7 @@ impl Session {
             .result
             .ok_or_else(|| Error::Server("Initialize response missing result".to_string()))?;
 
-        let init_response: InitializeResponse = Utils::from_json_value(result)?;
+        let init_response: InitializeResponse = serde_json::from_value(result)?;
 
         // Update session state
         {
@@ -307,7 +307,7 @@ impl Session {
         let initialized_notification = JsonRpcNotification {
             jsonrpc: "2.0".to_string(),
             method: "initialized".to_string(),
-            params: Some(Utils::to_json_value(&InitializedNotification {})?),
+            params: Some(serde_json::to_value(&InitializedNotification {})?),
         };
 
         self.send_notification(initialized_notification).await?;

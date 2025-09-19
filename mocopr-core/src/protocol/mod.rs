@@ -3,7 +3,7 @@
 //! This module provides high-level protocol handling for MCP communications,
 //! including message routing, capability negotiation, and error handling.
 
-use crate::{Error, Result, types::*};
+use crate::{utils::json, Error, Result, types::*};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -118,7 +118,7 @@ impl Protocol {
 
     /// Parse a JSON-RPC message from string
     pub fn parse_message(message: &str) -> Result<JsonRpcMessage> {
-        let value: Value = serde_json::from_str(message)?;
+        let value: Value = json::from_str(message)?;
 
         // Check if it's a request, response, or notification
         if value.get("method").is_some() {
@@ -145,11 +145,20 @@ impl Protocol {
     /// Serialize a JSON-RPC message to string
     pub fn serialize_message(message: &JsonRpcMessage) -> Result<String> {
         match message {
-            JsonRpcMessage::Request(req) => serde_json::to_string(req),
-            JsonRpcMessage::Response(resp) => serde_json::to_string(resp),
-            JsonRpcMessage::Notification(notif) => serde_json::to_string(notif),
+            JsonRpcMessage::Request(req) => json::to_string(req),
+            JsonRpcMessage::Response(resp) => json::to_string(resp),
+            JsonRpcMessage::Notification(notif) => json::to_string(notif),
         }
-        .map_err(Into::into)
+    }
+
+    /// Serialize a JSON-RPC message to a buffer
+    pub fn serialize_message_to_buffer(
+        message: &JsonRpcMessage,
+        buffer: &mut bytes::BytesMut,
+    ) -> Result<()> {
+        let s = Self::serialize_message(message)?;
+        buffer.extend_from_slice(s.as_bytes());
+        Ok(())
     }
 
     /// Convert an error to a JSON-RPC error

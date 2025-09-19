@@ -59,6 +59,7 @@ pub struct McpServerBuilder {
     port: u16,
     enable_http: bool,
     enable_websocket: bool,
+    multi_threaded_runtime: bool,
 }
 
 impl McpServerBuilder {
@@ -88,6 +89,7 @@ impl McpServerBuilder {
             port: 8080,
             enable_http: false,
             enable_websocket: false,
+            multi_threaded_runtime: false,
         }
     }
 
@@ -352,6 +354,25 @@ impl McpServerBuilder {
         self
     }
 
+    /// Enable multi-threaded Tokio runtime
+    ///
+    /// By default, the server uses a single-threaded runtime. This method
+    /// enables the multi-threaded runtime, which can improve performance
+    /// for some workloads.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use mocopr_server::prelude::*;
+    ///
+    /// let builder = McpServerBuilder::new()
+    ///     .with_multi_threaded_runtime();
+    /// ```
+    pub fn with_multi_threaded_runtime(mut self) -> Self {
+        self.multi_threaded_runtime = true;
+        self
+    }
+
     /// Build the MCP server
     pub fn build(self) -> Result<McpServer> {
         let name = self
@@ -376,6 +397,7 @@ impl McpServerBuilder {
             self.port,
             self.enable_http,
             self.enable_websocket,
+            self.multi_threaded_runtime,
         ))
     }
 }

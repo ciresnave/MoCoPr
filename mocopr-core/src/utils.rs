@@ -1,5 +1,7 @@
 //! Utility functions and helpers
 
+pub mod json;
+
 use crate::Result;
 use serde::{Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
@@ -39,53 +41,6 @@ impl Utils {
     ///     age: 30,
     /// };
     ///
-    /// let json_value = Utils::to_json_value(&person).unwrap();
-    /// assert_eq!(json_value["name"], "Alice");
-    /// assert_eq!(json_value["age"], 30);
-    /// ```
-    pub fn to_json_value<T: Serialize>(value: &T) -> Result<serde_json::Value> {
-        serde_json::to_value(value).map_err(Into::into)
-    }
-
-    /// Convert a JSON value to a deserializable object.
-    ///
-    /// This utility method converts a `serde_json::Value` into any Rust type that
-    /// implements the `DeserializeOwned` trait.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The JSON value to convert
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing either the deserialized object or an error if deserialization fails
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use mocopr_core::utils::Utils;
-    /// use serde::{Serialize, Deserialize};
-    /// use serde_json::json;
-    ///
-    /// #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    /// struct Person {
-    ///     name: String,
-    ///     age: u32,
-    /// }
-    ///
-    /// let json_value = json!({
-    ///     "name": "Bob",
-    ///     "age": 42
-    /// });
-    ///
-    /// let person: Person = Utils::from_json_value(json_value).unwrap();
-    /// assert_eq!(person.name, "Bob");
-    /// assert_eq!(person.age, 42);
-    /// ```
-    pub fn from_json_value<T: DeserializeOwned>(value: serde_json::Value) -> Result<T> {
-        serde_json::from_value(value).map_err(Into::into)
-    }
-
     /// Get current timestamp as seconds since Unix epoch.
     ///
     /// This utility method provides a consistent way to get the current time
@@ -193,141 +148,6 @@ impl Utils {
             normalized.pop();
         }
         Ok(normalized)
-    }
-
-    /// Check if a string is a valid JSON.
-    ///
-    /// This utility method attempts to parse a string as JSON and returns
-    /// `true` if successful, `false` otherwise.
-    ///
-    /// # Arguments
-    ///
-    /// * `s` - The string to check
-    ///
-    /// # Returns
-    ///
-    /// `true` if the string is valid JSON, `false` otherwise
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use mocopr_core::utils::Utils;
-    ///
-    /// assert!(Utils::is_valid_json("{\"key\": \"value\"}"));
-    /// assert!(!Utils::is_valid_json("invalid_json"));
-    /// ```
-    pub fn is_valid_json(s: &str) -> bool {
-        serde_json::from_str::<serde_json::Value>(s).is_ok()
-    }
-
-    /// Pretty print JSON.
-    ///
-    /// This utility method converts a serializable object into a nicely formatted
-    /// JSON string, with indentation and line breaks for readability.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The value to convert to a pretty-printed JSON string
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing either the pretty-printed JSON string or an error if serialization fails
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use mocopr_core::utils::Utils;
-    /// use serde::Serialize;
-    ///
-    /// #[derive(Serialize)]
-    /// struct Person {
-    ///     name: String,
-    ///     age: u32,
-    /// }
-    ///
-    /// let person = Person {
-    ///     name: "Alice".to_string(),
-    ///     age: 30,
-    /// };
-    ///
-    /// let pretty_json = Utils::pretty_json(&person).unwrap();
-    /// println!("{}", pretty_json);
-    /// ```
-    pub fn pretty_json<T: Serialize>(value: &T) -> Result<String> {
-        serde_json::to_string_pretty(value).map_err(Into::into)
-    }
-
-    /// Compact JSON string.
-    ///
-    /// This utility method converts a serializable object into a compact JSON string,
-    /// with all unnecessary whitespace removed.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The value to convert to a compact JSON string
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing either the compact JSON string or an error if serialization fails
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use mocopr_core::utils::Utils;
-    /// use serde::Serialize;
-    ///
-    /// #[derive(Serialize)]
-    /// struct Person {
-    ///     name: String,
-    ///     age: u32,
-    /// }
-    ///
-    /// let person = Person {
-    ///     name: "Alice".to_string(),
-    ///     age: 30,
-    /// };
-    ///
-    /// let compact_json = Utils::compact_json(&person).unwrap();
-    /// assert_eq!(compact_json, "{\"name\":\"Alice\",\"age\":30}");
-    /// ```
-    pub fn compact_json<T: Serialize>(value: &T) -> Result<String> {
-        serde_json::to_string(value).map_err(Into::into)
-    }
-
-    /// Escape string for JSON.
-    ///
-    /// This utility method escapes special characters in a string to make it safe
-    /// for inclusion in a JSON document.
-    ///
-    /// # Arguments
-    ///
-    /// * `s` - The string to escape
-    ///
-    /// # Returns
-    ///
-    /// An escaped string
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use mocopr_core::utils::Utils;
-    ///
-    /// let original = "This is a \"test\" string with a newline\n and a tab\t.";
-    /// let escaped = Utils::escape_json_string(original);
-    /// assert_eq!(escaped, "This is a \\\"test\\\" string with a newline\\n and a tab\\t.");
-    /// ```
-    pub fn escape_json_string(s: &str) -> String {
-        s.chars()
-            .map(|c| match c {
-                '"' => "\\\"".to_string(),
-                '\\' => "\\\\".to_string(),
-                '\n' => "\\n".to_string(),
-                '\r' => "\\r".to_string(),
-                '\t' => "\\t".to_string(),
-                c if c.is_control() => format!("\\u{:04x}", c as u32),
-                c => c.to_string(),
-            })
-            .collect()
     }
 
     /// Generate a random string.

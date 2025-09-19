@@ -15,6 +15,7 @@ members = [
     "examples/performance-analysis",
     "examples/production-ready",
     "examples/websocket-server",
+    "examples/http-client-tool",
 ]
 
 [workspace.package]
