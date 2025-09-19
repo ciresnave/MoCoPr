@@ -70,12 +70,25 @@ async fn test_stdio_transport_from_process() -> Result<()> {
 async fn test_stdio_transport_spawn() -> Result<()> {
     // Spawn a process for testing
     let (command, args) = if cfg!(target_os = "windows") {
-        ("powershell.exe", vec!["-Command", "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }"])
+        (
+            "powershell.exe",
+            vec![
+                "-Command",
+                "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
+            ],
+        )
     } else {
-        ("sh", vec!["-c", "while read line; do echo \"Echo: $line\"; done"])
+        (
+            "sh",
+            vec!["-c", "while read line; do echo \"Echo: $line\"; done"],
+        )
     };
 
-    let mut transport = StdioTransport::spawn(command, &args.iter().map(|s| s.to_string()).collect::<Vec<_>>()).await?;
+    let mut transport = StdioTransport::spawn(
+        command,
+        &args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+    )
+    .await?;
 
     assert!(transport.is_connected());
 
@@ -101,12 +114,25 @@ async fn test_stdio_transport_spawn() -> Result<()> {
 async fn test_stdio_transport_multiple_messages() -> Result<()> {
     // Spawn a process for testing
     let (command, args) = if cfg!(target_os = "windows") {
-        ("powershell.exe", vec!["-Command", "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }"])
+        (
+            "powershell.exe",
+            vec![
+                "-Command",
+                "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
+            ],
+        )
     } else {
-        ("sh", vec!["-c", "while read line; do echo \"Echo: $line\"; done"])
+        (
+            "sh",
+            vec!["-c", "while read line; do echo \"Echo: $line\"; done"],
+        )
     };
 
-    let mut transport = StdioTransport::spawn(command, &args.iter().map(|s| s.to_string()).collect::<Vec<_>>()).await?;
+    let mut transport = StdioTransport::spawn(
+        command,
+        &args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+    )
+    .await?;
 
     // Send multiple messages
     for i in 1..=5 {
@@ -159,11 +185,21 @@ async fn test_stdio_transport_spawn_invalid_command() {
 async fn test_stdio_transport_kill() -> Result<()> {
     // Spawn a process for testing
     let (command, args) = if cfg!(target_os = "windows") {
-        ("powershell.exe", vec!["-Command", "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }"])
+        (
+            "powershell.exe",
+            vec![
+                "-Command",
+                "while($line = [Console]::In.ReadLine()) { [Console]::Out.WriteLine(\"Echo: $line\") }",
+            ],
+        )
     } else {
         ("sh", vec!["-c", "sleep 5"])
     };
-    let mut transport = StdioTransport::spawn(command, &args.iter().map(|s| s.to_string()).collect::<Vec<_>>()).await?;
+    let mut transport = StdioTransport::spawn(
+        command,
+        &args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+    )
+    .await?;
 
     // Kill the process
     transport.kill().await?;

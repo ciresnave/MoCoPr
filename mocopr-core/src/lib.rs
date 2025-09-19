@@ -181,15 +181,18 @@ impl<T> ToolExecutor for T
 where
     T: SimpleTool + Sync + Send,
 {
-    async fn execute(&self, arguments: Option<serde_json::Value>) -> Result<types::ToolsCallResponse> {
+    async fn execute(
+        &self,
+        arguments: Option<serde_json::Value>,
+    ) -> Result<types::ToolsCallResponse> {
         let args = arguments.unwrap_or_default();
         match self.call(args).await {
             Ok(result) => Ok(types::ToolsCallResponse::success(vec![
                 types::Content::Text(types::TextContent::new(result.to_string())),
             ])),
-            Err(e) => Ok(types::ToolsCallResponse::error(vec![
-                types::Content::Text(types::TextContent::new(e.to_string())),
-            ])),
+            Err(e) => Ok(types::ToolsCallResponse::error(vec![types::Content::Text(
+                types::TextContent::new(e.to_string()),
+            )])),
         }
     }
 }

@@ -3,7 +3,7 @@
 //! This module provides high-level protocol handling for MCP communications,
 //! including message routing, capability negotiation, and error handling.
 
-use crate::{utils::json, Error, Result, types::*};
+use crate::{Error, Result, types::*, utils::json};
 use serde_json::Value;
 use uuid::Uuid;
 

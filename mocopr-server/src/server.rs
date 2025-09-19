@@ -3,8 +3,8 @@
 use crate::middleware::Middleware;
 use crate::registry::*;
 use axum::extract::ws::WebSocket;
-use mocopr_core::monitoring::MonitoringSystem;
 use bytes::{BufMut, BytesMut};
+use mocopr_core::monitoring::MonitoringSystem;
 use mocopr_core::prelude::*;
 use mocopr_core::utils::json;
 use serde_json::json;
@@ -116,7 +116,9 @@ impl McpServer {
 
     /// Trigger a graceful shutdown of the server.
     pub fn shutdown(&self) -> Result<()> {
-        self.shutdown_tx.send(()).map_err(|e| Error::Internal(e.to_string()))
+        self.shutdown_tx
+            .send(())
+            .map_err(|e| Error::Internal(e.to_string()))
     }
 
     /// Run the server using stdio transport
@@ -154,9 +156,7 @@ impl McpServer {
 
         // Run the session
         let mut shutdown_rx = self.shutdown_rx.clone();
-        let session_run = tokio::spawn(async move {
-            session_clone.run().await
-        });
+        let session_run = tokio::spawn(async move { session_clone.run().await });
 
         tokio::select! {
             res = session_run => {
@@ -182,7 +182,9 @@ impl McpServer {
     /// if they were enabled during building, falling back to stdio if neither is enabled.
     pub async fn run(&self) -> Result<()> {
         if self.multi_threaded_runtime {
-            warn!("Multi-threaded runtime requested, but the `run` method does not create a new runtime. Please use the `#[tokio::main(flavor = \"multi_thread\")]` attribute on your main function to enable the multi-threaded runtime.");
+            warn!(
+                "Multi-threaded runtime requested, but the `run` method does not create a new runtime. Please use the `#[tokio::main(flavor = \"multi_thread\")]` attribute on your main function to enable the multi-threaded runtime."
+            );
         }
 
         if self.enable_http && self.enable_websocket {
@@ -336,7 +338,10 @@ async fn handle_mcp_method(
         }
     };
 
-    let params = json_msg.get("params").cloned().unwrap_or(serde_json::Value::Null);
+    let params = json_msg
+        .get("params")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
 
     // Helper macro to parse request parameters
     macro_rules! parse_request {
@@ -476,14 +481,22 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
             Err(e) => {
                 error!("Failed to parse JSON message: {}", e);
                 let error_response = JsonRpcMessage::error(None, -32700, "Parse error");
-                if socket.send(axum::extract::ws::Message::Text(serde_json::to_string(&error_response).unwrap())).await.is_err() {
+                if socket
+                    .send(axum::extract::ws::Message::Text(
+                        serde_json::to_string(&error_response).unwrap(),
+                    ))
+                    .await
+                    .is_err()
+                {
                     error!("Failed to send parse error response");
                 }
                 continue;
             }
         };
 
-        let id: Option<RequestId> = json_msg.get("id").and_then(|v| serde_json::from_value(v.clone()).ok());
+        let id: Option<RequestId> = json_msg
+            .get("id")
+            .and_then(|v| serde_json::from_value(v.clone()).ok());
 
         if !initialized {
             if let Some("initialize") = json_msg.get("method").and_then(|m| m.as_str()) {
@@ -492,22 +505,44 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
                         Ok(init_response) => {
                             initialized = true;
                             let response = JsonRpcMessage::success(id, init_response);
-                            if socket.send(axum::extract::ws::Message::Text(serde_json::to_string(&response).unwrap())).await.is_err() {
+                            if socket
+                                .send(axum::extract::ws::Message::Text(
+                                    serde_json::to_string(&response).unwrap(),
+                                ))
+                                .await
+                                .is_err()
+                            {
                                 error!("Failed to send initialize response");
                                 break;
                             }
                         }
                         Err(e) => {
                             let response = JsonRpcMessage::from_error(id, e);
-                            if socket.send(axum::extract::ws::Message::Text(serde_json::to_string(&response).unwrap())).await.is_err() {
+                            if socket
+                                .send(axum::extract::ws::Message::Text(
+                                    serde_json::to_string(&response).unwrap(),
+                                ))
+                                .await
+                                .is_err()
+                            {
                                 error!("Failed to send initialize error response");
                                 break;
                             }
                         }
                     },
                     Err(e) => {
-                        let response = JsonRpcMessage::error(id, -32602, format!("Invalid initialize request: {}", e));
-                        if socket.send(axum::extract::ws::Message::Text(serde_json::to_string(&response).unwrap())).await.is_err() {
+                        let response = JsonRpcMessage::error(
+                            id,
+                            -32602,
+                            format!("Invalid initialize request: {}", e),
+                        );
+                        if socket
+                            .send(axum::extract::ws::Message::Text(
+                                serde_json::to_string(&response).unwrap(),
+                            ))
+                            .await
+                            .is_err()
+                        {
                             error!("Failed to send invalid initialize request response");
                             break;
                         }
@@ -515,13 +550,25 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
                 }
             } else {
                 let response = JsonRpcMessage::error(id, -32002, "Server not initialized");
-                if socket.send(axum::extract::ws::Message::Text(serde_json::to_string(&response).unwrap())).await.is_err() {
+                if socket
+                    .send(axum::extract::ws::Message::Text(
+                        serde_json::to_string(&response).unwrap(),
+                    ))
+                    .await
+                    .is_err()
+                {
                     error!("Failed to send 'not initialized' error response");
                     break;
                 }
             }
         } else if let Some(response) = handle_mcp_method(&handler, &json_msg).await {
-            if socket.send(axum::extract::ws::Message::Text(serde_json::to_string(&response).unwrap())).await.is_err() {
+            if socket
+                .send(axum::extract::ws::Message::Text(
+                    serde_json::to_string(&response).unwrap(),
+                ))
+                .await
+                .is_err()
+            {
                 error!("Failed to send WebSocket response");
                 break;
             }

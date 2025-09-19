@@ -114,7 +114,8 @@ impl Session {
     /// Shutdown the session gracefully
     pub async fn shutdown(&self) -> Result<()> {
         if let Some(tx) = self.shutdown_tx.lock().await.take() {
-            tx.send(()).map_err(|_| Error::Internal("Failed to send shutdown signal".to_string()))
+            tx.send(())
+                .map_err(|_| Error::Internal("Failed to send shutdown signal".to_string()))
         } else {
             Ok(())
         }

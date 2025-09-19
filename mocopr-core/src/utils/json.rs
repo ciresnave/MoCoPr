@@ -7,8 +7,8 @@
 //! By default, it uses `serde_json`, but can be configured to use `simd-json`
 //! for improved performance by enabling the `simd-json-performance` feature.
 
-use serde::de::DeserializeOwned;
 use crate::{Error, Result};
+use serde::de::DeserializeOwned;
 
 macro_rules! json_parse_fn {
     (
@@ -95,7 +95,6 @@ json_parse_fn! {
         serde_json::from_slice(s).map_err(|e| Error::Json(e.to_string()))
     }
 }
-
 
 /// Serialize a value to a JSON string.
 ///

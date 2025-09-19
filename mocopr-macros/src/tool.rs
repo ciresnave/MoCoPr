@@ -38,7 +38,11 @@ pub fn derive_tool_impl(input: DeriveInput) -> Result<TokenStream> {
                     tool_description = Some(lit_str.value());
                     Ok(())
                 } else {
-                    let path = meta.path.get_ident().map(|i| i.to_string()).unwrap_or_else(|| "unknown".to_string());
+                    let path = meta
+                        .path
+                        .get_ident()
+                        .map(|i| i.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
                     Err(meta.error(format!("unsupported tool attribute: `{}`", path)))
                 }
             })?;
@@ -118,7 +122,11 @@ pub fn mcp_tool_impl(args: Meta, input: ItemFn) -> Result<TokenStream> {
                 tool_description = lit_str.value();
                 Ok(())
             } else {
-                let path = meta.path.get_ident().map(|i| i.to_string()).unwrap_or_else(|| "unknown".to_string());
+                let path = meta
+                    .path
+                    .get_ident()
+                    .map(|i| i.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
                 Err(meta.error(format!("unsupported tool attribute: `{}`", path)))
             }
         });

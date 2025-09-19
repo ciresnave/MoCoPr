@@ -33,10 +33,7 @@ impl HttpGetTool {
 #[async_trait::async_trait]
 impl ToolExecutor for HttpGetTool {
     /// Executes the tool to fetch the content of a URL.
-    async fn execute(
-        &self,
-        arguments: Option<Value>,
-    ) -> mocopr_core::Result<ToolsCallResponse> {
+    async fn execute(&self, arguments: Option<Value>) -> mocopr_core::Result<ToolsCallResponse> {
         let args = arguments.unwrap_or_default();
         let url = match args.get("url").and_then(|v| v.as_str()) {
             Some(url) => url,

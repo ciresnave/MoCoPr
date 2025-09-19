@@ -97,8 +97,9 @@ impl Middleware for LoggingMiddleware {
 /// Timeout middleware
 pub struct TimeoutMiddleware {
     timeout: std::time::Duration,
-    request_start_times:
-        std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<RequestId, std::time::Instant>>>,
+    request_start_times: std::sync::Arc<
+        tokio::sync::RwLock<std::collections::HashMap<RequestId, std::time::Instant>>,
+    >,
 }
 
 impl TimeoutMiddleware {

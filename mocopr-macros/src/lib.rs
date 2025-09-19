@@ -26,7 +26,10 @@ pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
     let user_main_name = &user_main.sig.ident;
 
     // Rename the user's main function
-    let new_user_main_name = syn::Ident::new(&format!("__{}_unwrapped", user_main_name), user_main_name.span());
+    let new_user_main_name = syn::Ident::new(
+        &format!("__{}_unwrapped", user_main_name),
+        user_main_name.span(),
+    );
     user_main.sig.ident = new_user_main_name.clone();
 
     let expanded = quote::quote! {
