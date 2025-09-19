@@ -21,7 +21,7 @@ mocopr-server = { version = "0.1.0", path = "../mocopr-server" }
 role-system = { version = "0.1", features = ["async", "persistence", "audit"] }
 
 # Async support
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.47", features = ["full"] }
 async-trait = "0.1"
 
 # Serialization

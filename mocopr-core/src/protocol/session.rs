@@ -1,7 +1,7 @@
 //! Session management for MCP connections
 
 use super::*;
-use crate::{Error, Result, transport::Transport, utils::Utils};
+use crate::{Error, Result, transport::Transport};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, mpsc};
@@ -15,6 +15,7 @@ pub struct Session {
     router: MessageRouter,
     pending_requests: Arc<Mutex<HashMap<RequestId, PendingRequest>>>,
     event_sender: mpsc::UnboundedSender<SessionEvent>,
+    shutdown_tx: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
 
 /// Session state information
@@ -104,9 +105,20 @@ impl Session {
             router,
             pending_requests: Arc::new(Mutex::new(HashMap::new())),
             event_sender,
+            shutdown_tx: Arc::new(Mutex::new(None)),
         };
 
         (session, event_receiver)
+    }
+
+    /// Shutdown the session gracefully
+    pub async fn shutdown(&self) -> Result<()> {
+        if let Some(tx) = self.shutdown_tx.lock().await.take() {
+            tx.send(())
+                .map_err(|_| Error::Internal("Failed to send shutdown signal".to_string()))
+        } else {
+            Ok(())
+        }
     }
 
     /// Get session ID
@@ -190,39 +202,39 @@ impl Session {
     /// Start the session message loop
     pub async fn run(&self) -> Result<()> {
         let _ = self.event_sender.send(SessionEvent::Connected);
+        let (tx, mut rx) = tokio::sync::oneshot::channel();
+        *self.shutdown_tx.lock().await = Some(tx);
+
+        let transport = self.transport.clone();
 
         loop {
-            // Receive message from transport
-            let message = {
-                let mut transport = self.transport.lock().await;
-                transport.receive().await?
-            };
+            let mut transport_guard = transport.lock().await;
+            tokio::select! {
+                message_result = transport_guard.receive() => {
+                    drop(transport_guard);
+                    let message = match message_result {
+                        Ok(Some(msg)) => msg,
+                        Ok(None) => {
+                            let _ = self.event_sender.send(SessionEvent::Disconnected);
+                            break;
+                        }
+                        Err(e) => {
+                            let _ = self.event_sender.send(SessionEvent::Error { error: e.to_string() });
+                            break;
+                        }
+                    };
 
-            let message = match message {
-                Some(msg) => msg,
-                None => {
-                    // Connection closed
-                    let _ = self.event_sender.send(SessionEvent::Disconnected);
+                    self.state.write().await.last_activity = chrono::Utc::now();
+                    let _ = self.event_sender.send(SessionEvent::MessageReceived { message: message.clone() });
+
+                    if let Err(e) = self.process_message(&message).await {
+                        let _ = self.event_sender.send(SessionEvent::Error { error: e.to_string() });
+                    }
+                }
+                _ = &mut rx => {
+                    // Shutdown signal received
                     break;
                 }
-            };
-
-            // Update last activity
-            {
-                let mut state = self.state.write().await;
-                state.last_activity = chrono::Utc::now();
-            }
-
-            // Send event
-            let _ = self.event_sender.send(SessionEvent::MessageReceived {
-                message: message.clone(),
-            });
-
-            // Process message
-            if let Err(e) = self.process_message(&message).await {
-                let _ = self.event_sender.send(SessionEvent::Error {
-                    error: e.to_string(),
-                });
             }
         }
 
@@ -270,7 +282,7 @@ impl Session {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "initialize".to_string(),
-            params: Some(Utils::to_json_value(&InitializeRequest {
+            params: Some(serde_json::to_value(&InitializeRequest {
                 protocol_version: Protocol::latest_version().to_string(),
                 capabilities: client_capabilities.clone(),
                 client_info: client_info.clone(),
@@ -290,7 +302,7 @@ impl Session {
             .result
             .ok_or_else(|| Error::Server("Initialize response missing result".to_string()))?;
 
-        let init_response: InitializeResponse = Utils::from_json_value(result)?;
+        let init_response: InitializeResponse = serde_json::from_value(result)?;
 
         // Update session state
         {
@@ -307,7 +319,7 @@ impl Session {
         let initialized_notification = JsonRpcNotification {
             jsonrpc: "2.0".to_string(),
             method: "initialized".to_string(),
-            params: Some(Utils::to_json_value(&InitializedNotification {})?),
+            params: Some(serde_json::to_value(&InitializedNotification {})?),
         };
 
         self.send_notification(initialized_notification).await?;

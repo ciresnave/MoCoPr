@@ -3,10 +3,13 @@
 use crate::middleware::Middleware;
 use crate::registry::*;
 use axum::extract::ws::WebSocket;
+use bytes::{BufMut, BytesMut};
 use mocopr_core::monitoring::MonitoringSystem;
 use mocopr_core::prelude::*;
+use mocopr_core::utils::json;
 use serde_json::json;
 use std::sync::Arc;
+use tokio::sync::watch;
 use tracing::{debug, error, info, warn};
 
 /// High-level MCP server
@@ -20,6 +23,9 @@ pub struct McpServer {
     port: u16,
     enable_http: bool,
     enable_websocket: bool,
+    multi_threaded_runtime: bool,
+    shutdown_tx: watch::Sender<()>,
+    shutdown_rx: watch::Receiver<()>,
 }
 
 impl McpServer {
@@ -41,7 +47,9 @@ impl McpServer {
         port: u16,
         enable_http: bool,
         enable_websocket: bool,
+        multi_threaded_runtime: bool,
     ) -> Self {
+        let (shutdown_tx, shutdown_rx) = watch::channel(());
         let handler = Arc::new(ServerMessageHandler::new(
             info.clone(),
             capabilities.clone(),
@@ -60,6 +68,9 @@ impl McpServer {
             port,
             enable_http,
             enable_websocket,
+            multi_threaded_runtime,
+            shutdown_tx,
+            shutdown_rx,
         }
     }
 
@@ -103,6 +114,13 @@ impl McpServer {
         self.enable_websocket
     }
 
+    /// Trigger a graceful shutdown of the server.
+    pub fn shutdown(&self) -> Result<()> {
+        self.shutdown_tx
+            .send(())
+            .map_err(|e| Error::Internal(e.to_string()))
+    }
+
     /// Run the server using stdio transport
     pub async fn run_stdio(&self) -> Result<()> {
         info!("Starting MCP server with stdio transport");
@@ -110,6 +128,9 @@ impl McpServer {
         let transport = mocopr_core::transport::stdio::StdioTransport::current_process();
         let (session, mut events) =
             mocopr_core::protocol::Session::new(Box::new(transport), self.handler.clone());
+
+        let session = Arc::new(session);
+        let session_clone = session.clone();
 
         // Handle session events in the background
         let session_events = tokio::spawn(async move {
@@ -134,12 +155,25 @@ impl McpServer {
         });
 
         // Run the session
-        let session_result = session.run().await;
+        let mut shutdown_rx = self.shutdown_rx.clone();
+        let session_run = tokio::spawn(async move { session_clone.run().await });
 
-        // Wait for event handler to finish
+        tokio::select! {
+            res = session_run => {
+                if let Ok(Err(e)) = res {
+                    error!("Session exited with error: {}", e);
+                }
+            },
+            _ = shutdown_rx.changed() => {
+                info!("Graceful shutdown initiated for stdio transport");
+                if let Err(e) = session.shutdown().await {
+                    error!("Failed to shutdown session: {}", e);
+                }
+            }
+        };
+
         let _ = session_events.await;
-
-        session_result
+        Ok(())
     }
 
     /// Run the server with configured transports
@@ -147,6 +181,12 @@ impl McpServer {
     /// This will start the server using HTTP and/or WebSocket transports
     /// if they were enabled during building, falling back to stdio if neither is enabled.
     pub async fn run(&self) -> Result<()> {
+        if self.multi_threaded_runtime {
+            warn!(
+                "Multi-threaded runtime requested, but the `run` method does not create a new runtime. Please use the `#[tokio::main(flavor = \"multi_thread\")]` attribute on your main function to enable the multi-threaded runtime."
+            );
+        }
+
         if self.enable_http && self.enable_websocket {
             // Both HTTP and WebSocket enabled - start both
             let addr = format!("{}:{}", self.bind_address, self.port);
@@ -183,7 +223,12 @@ impl McpServer {
         let listener = tokio::net::TcpListener::bind(addr).await?;
         info!("HTTP server listening on {}", addr);
 
-        axum::serve(listener, app).await?;
+        let mut shutdown_rx = self.shutdown_rx.clone();
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                shutdown_rx.changed().await.ok();
+            })
+            .await?;
         Ok(())
     }
 
@@ -218,7 +263,12 @@ impl McpServer {
         let listener = tokio::net::TcpListener::bind(addr).await?;
         info!("HTTP+WebSocket server listening on {}", addr);
 
-        axum::serve(listener, app).await?;
+        let mut shutdown_rx = self.shutdown_rx.clone();
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                shutdown_rx.changed().await.ok();
+            })
+            .await?;
         Ok(())
     }
 
@@ -243,7 +293,12 @@ impl McpServer {
         let listener = tokio::net::TcpListener::bind(addr).await?;
         info!("WebSocket server listening on {}", addr);
 
-        axum::serve(listener, app).await?;
+        let mut shutdown_rx = self.shutdown_rx.clone();
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                shutdown_rx.changed().await.ok();
+            })
+            .await?;
         Ok(())
     }
 
@@ -267,390 +322,254 @@ impl McpServer {
 async fn handle_mcp_method(
     handler: &Arc<ServerMessageHandler>,
     json_msg: &serde_json::Value,
-) -> Option<serde_json::Value> {
+) -> Option<JsonRpcMessage> {
+    let id: Option<RequestId> = json_msg
+        .get("id")
+        .and_then(|v| serde_json::from_value(v.clone()).ok());
+
     let method = match json_msg.get("method").and_then(|m| m.as_str()) {
         Some(method) => method,
         None => {
-            return Some(json!({
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32600,
-                    "message": "Invalid Request"
-                },
-                "id": json_msg.get("id")
-            }));
+            return Some(JsonRpcMessage::error(
+                id,
+                -32600,
+                "Invalid Request: Missing 'method' field.",
+            ));
         }
     };
 
-    let id = json_msg.get("id");
-    let params = json_msg.get("params");
+    let params = json_msg
+        .get("params")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
 
-    // Handle different MCP methods
+    // Helper macro to parse request parameters
+    macro_rules! parse_request {
+        ($type:ty) => {
+            match serde_json::from_value::<$type>(params.clone()) {
+                Ok(req) => req,
+                Err(e) => {
+                    return Some(JsonRpcMessage::error(
+                        id,
+                        -32602,
+                        format!("Invalid Parameters: {}", e),
+                    ));
+                }
+            }
+        };
+        ($type:ty, default) => {
+            match serde_json::from_value::<$type>(params.clone()) {
+                Ok(req) => req,
+                Err(_) => <$type>::default(),
+            }
+        };
+    }
+
     let result = match method {
         "ping" => {
-            let request = match params {
-                Some(p) => match serde_json::from_value::<PingRequest>(p.clone()) {
-                    Ok(req) => req,
-                    Err(_) => PingRequest { message: None },
-                },
-                None => PingRequest { message: None },
-            };
+            let request = parse_request!(PingRequest, default);
             handler
                 .handle_ping(request)
                 .await
-                .map(|r| serde_json::to_value(r).unwrap())
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "resources/list" => {
-            let request = match params {
-                Some(p) => serde_json::from_value::<ResourcesListRequest>(p.clone()),
-                None => Ok(ResourcesListRequest {
-                    pagination: PaginationParams { cursor: None },
-                }),
-            };
-            match request {
-                Ok(req) => handler
-                    .handle_resources_list(req)
-                    .await
-                    .map(|r| serde_json::to_value(r).unwrap()),
-                Err(e) => Err(mocopr_core::Error::InvalidRequest(e.to_string())),
-            }
+            let request = parse_request!(ResourcesListRequest, default);
+            handler
+                .handle_resources_list(request)
+                .await
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "resources/read" => {
-            let request = match params
-                .and_then(|p| serde_json::from_value::<ResourcesReadRequest>(p.clone()).ok())
-            {
-                Some(req) => req,
-                None => {
-                    return Some(json!({
-                        "jsonrpc": "2.0",
-                        "error": {
-                            "code": -32602,
-                            "message": "Invalid params for resources/read"
-                        },
-                        "id": id
-                    }));
-                }
-            };
+            let request = parse_request!(ResourcesReadRequest);
             handler
                 .handle_resources_read(request)
                 .await
-                .map(|r| serde_json::to_value(r).unwrap())
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "resources/subscribe" => {
-            let request = match params
-                .and_then(|p| serde_json::from_value::<ResourcesSubscribeRequest>(p.clone()).ok())
-            {
-                Some(req) => req,
-                None => {
-                    return Some(json!({
-                        "jsonrpc": "2.0",
-                        "error": {
-                            "code": -32602,
-                            "message": "Invalid params for resources/subscribe"
-                        },
-                        "id": id
-                    }));
-                }
-            };
+            let request = parse_request!(ResourcesSubscribeRequest);
             handler
                 .handle_resources_subscribe(request)
                 .await
-                .map(|r| serde_json::to_value(r).unwrap())
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "resources/unsubscribe" => {
-            let request = match params
-                .and_then(|p| serde_json::from_value::<ResourcesUnsubscribeRequest>(p.clone()).ok())
-            {
-                Some(req) => req,
-                None => {
-                    return Some(json!({
-                        "jsonrpc": "2.0",
-                        "error": {
-                            "code": -32602,
-                            "message": "Invalid params for resources/unsubscribe"
-                        },
-                        "id": id
-                    }));
-                }
-            };
+            let request = parse_request!(ResourcesUnsubscribeRequest);
             handler
                 .handle_resources_unsubscribe(request)
                 .await
-                .map(|r| serde_json::to_value(r).unwrap())
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "tools/list" => {
-            let request = match params {
-                Some(p) => serde_json::from_value::<ToolsListRequest>(p.clone()),
-                None => Ok(ToolsListRequest {
-                    pagination: PaginationParams { cursor: None },
-                }),
-            };
-            match request {
-                Ok(req) => handler
-                    .handle_tools_list(req)
-                    .await
-                    .map(|r| serde_json::to_value(r).unwrap()),
-                Err(e) => Err(mocopr_core::Error::InvalidRequest(e.to_string())),
-            }
+            let request = parse_request!(ToolsListRequest, default);
+            handler
+                .handle_tools_list(request)
+                .await
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "tools/call" => {
-            let request = match params
-                .and_then(|p| serde_json::from_value::<ToolsCallRequest>(p.clone()).ok())
-            {
-                Some(req) => req,
-                None => {
-                    return Some(json!({
-                        "jsonrpc": "2.0",
-                        "error": {
-                            "code": -32602,
-                            "message": "Invalid params for tools/call"
-                        },
-                        "id": id
-                    }));
-                }
-            };
+            let request = parse_request!(ToolsCallRequest);
             handler
                 .handle_tools_call(request)
                 .await
-                .map(|r| serde_json::to_value(r).unwrap())
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "prompts/list" => {
-            let request = match params {
-                Some(p) => serde_json::from_value::<PromptsListRequest>(p.clone()),
-                None => Ok(PromptsListRequest {
-                    pagination: PaginationParams { cursor: None },
-                }),
-            };
-            match request {
-                Ok(req) => handler
-                    .handle_prompts_list(req)
-                    .await
-                    .map(|r| serde_json::to_value(r).unwrap()),
-                Err(e) => Err(mocopr_core::Error::InvalidRequest(e.to_string())),
-            }
+            let request = parse_request!(PromptsListRequest, default);
+            handler
+                .handle_prompts_list(request)
+                .await
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "prompts/get" => {
-            let request = match params
-                .and_then(|p| serde_json::from_value::<PromptsGetRequest>(p.clone()).ok())
-            {
-                Some(req) => req,
-                None => {
-                    return Some(json!({
-                        "jsonrpc": "2.0",
-                        "error": {
-                            "code": -32602,
-                            "message": "Invalid params for prompts/get"
-                        },
-                        "id": id
-                    }));
-                }
-            };
+            let request = parse_request!(PromptsGetRequest);
             handler
                 .handle_prompts_get(request)
                 .await
-                .map(|r| serde_json::to_value(r).unwrap())
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
         "logging/setLevel" => {
-            let request = match params
-                .and_then(|p| serde_json::from_value::<LoggingSetLevelRequest>(p.clone()).ok())
-            {
-                Some(req) => req,
-                None => {
-                    return Some(json!({
-                        "jsonrpc": "2.0",
-                        "error": {
-                            "code": -32602,
-                            "message": "Invalid params for logging/setLevel"
-                        },
-                        "id": id
-                    }));
-                }
-            };
+            let request = parse_request!(LoggingSetLevelRequest);
             handler
                 .handle_logging_set_level(request)
                 .await
-                .map(|r| serde_json::to_value(r).unwrap())
+                .and_then(|r| serde_json::to_value(r).map_err(Error::from))
         }
-
-        // Handle notifications (no response expected)
         "notifications/initialized" => {
-            let notification = match params
-                .and_then(|p| serde_json::from_value::<InitializedNotification>(p.clone()).ok())
-            {
-                Some(notif) => notif,
-                None => InitializedNotification {},
-            };
-            match handler.handle_initialized(notification).await {
-                Ok(_) => return None,  // No response for notifications
-                Err(_) => return None, // Still no response for notifications, just log internally
+            let notification = parse_request!(InitializedNotification, default);
+            if let Err(e) = handler.handle_initialized(notification).await {
+                warn!("Error handling initialized notification: {}", e);
             }
+            return None;
         }
-
-        // Unknown method
-        _ => Err(mocopr_core::Error::MethodNotFound(method.to_string())),
+        _ => Err(Error::MethodNotFound(method.to_string())),
     };
 
     // Convert result to JSON response
     match result {
-        Ok(value) => Some(json!({
-            "jsonrpc": "2.0",
-            "result": value,
-            "id": id
-        })),
-        Err(e) => Some(json!({
-            "jsonrpc": "2.0",
-            "error": {
-                "code": match &e {
-                    mocopr_core::Error::MethodNotFound(_) => -32601,
-                    mocopr_core::Error::InvalidRequest(_) => -32602,
-                    _ => -32603,
-                },
-                "message": e.to_string()
-            },
-            "id": id
-        })),
+        Ok(value) => Some(JsonRpcMessage::success(id, value)),
+        Err(e) => Some(JsonRpcMessage::from_error(id, e)),
     }
 }
 
 /// Handle WebSocket connections
 async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandler>) {
     info!("WebSocket client connected");
-
-    // Handle the MCP initialization handshake
     let mut initialized = false;
 
     while let Some(result) = socket.recv().await {
-        match result {
-            Ok(msg) => {
-                if let Ok(text) = msg.to_text() {
-                    debug!("Received WebSocket message: {}", text);
+        let msg = match result {
+            Ok(msg) => msg,
+            Err(e) => {
+                error!("WebSocket error: {}", e);
+                break;
+            }
+        };
 
-                    // Parse and handle the MCP message
-                    match serde_json::from_str::<serde_json::Value>(text) {
-                        Ok(json_msg) => {
-                            let response_json = if !initialized {
-                                // Handle initialization
-                                if let Some(method) =
-                                    json_msg.get("method").and_then(|m| m.as_str())
-                                {
-                                    if method == "initialize" {
-                                        // Parse the initialize request
-                                        match serde_json::from_value::<InitializeRequest>(
-                                            json_msg.clone(),
-                                        ) {
-                                            Ok(init_request) => {
-                                                match handler.handle_initialize(init_request).await
-                                                {
-                                                    Ok(init_response) => {
-                                                        initialized = true;
-                                                        Some(json!({
-                                                            "jsonrpc": "2.0",
-                                                            "result": init_response,
-                                                            "id": json_msg.get("id")
-                                                        }))
-                                                    }
-                                                    Err(e) => Some(json!({
-                                                        "jsonrpc": "2.0",
-                                                        "error": {
-                                                            "code": -32603,
-                                                            "message": e.to_string()
-                                                        },
-                                                        "id": json_msg.get("id")
-                                                    })),
-                                                }
-                                            }
-                                            Err(e) => Some(json!({
-                                                "jsonrpc": "2.0",
-                                                "error": {
-                                                    "code": -32602,
-                                                    "message": format!("Invalid initialize request: {}", e)
-                                                },
-                                                "id": json_msg.get("id")
-                                            })),
-                                        }
-                                    } else {
-                                        // Send error for non-initialize message before init
-                                        Some(json!({
-                                            "jsonrpc": "2.0",
-                                            "error": {
-                                                "code": -32002,
-                                                "message": "Server not initialized"
-                                            },
-                                            "id": json_msg.get("id")
-                                        }))
-                                    }
-                                } else {
-                                    Some(json!({
-                                        "jsonrpc": "2.0",
-                                        "error": {
-                                            "code": -32600,
-                                            "message": "Invalid Request"
-                                        },
-                                        "id": json_msg.get("id")
-                                    }))
-                                }
-                            } else {
-                                // Handle regular MCP messages after initialization
-                                handle_mcp_method(&handler, &json_msg).await
-                            };
+        let text = if let Ok(text) = msg.to_text() {
+            text
+        } else {
+            warn!("Received non-text WebSocket message, ignoring");
+            continue;
+        };
 
-                            // Send response if there is one
-                            if let Some(response) = response_json {
-                                let response_text = serde_json::to_string(&response)
-                                    .unwrap_or_else(|_| {
-                                        json!({
-                                            "jsonrpc": "2.0",
-                                            "error": {
-                                                "code": -32603,
-                                                "message": "Internal error"
-                                            }
-                                        })
-                                        .to_string()
-                                    });
+        debug!("Received WebSocket message: {}", text);
 
-                                if let Err(e) = socket
-                                    .send(axum::extract::ws::Message::Text(response_text))
-                                    .await
-                                {
-                                    error!("Failed to send WebSocket response: {}", e);
-                                    break;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to parse JSON message: {}", e);
-                            let error_response = json!({
-                                "jsonrpc": "2.0",
-                                "error": {
-                                    "code": -32700,
-                                    "message": "Parse error"
-                                },
-                                "id": null
-                            });
-                            if let Err(e) = socket
-                                .send(axum::extract::ws::Message::Text(error_response.to_string()))
+        let json_msg: serde_json::Value = match json::from_str(text) {
+            Ok(val) => val,
+            Err(e) => {
+                error!("Failed to parse JSON message: {}", e);
+                let error_response = JsonRpcMessage::error(None, -32700, "Parse error");
+                if socket
+                    .send(axum::extract::ws::Message::Text(
+                        serde_json::to_string(&error_response).unwrap(),
+                    ))
+                    .await
+                    .is_err()
+                {
+                    error!("Failed to send parse error response");
+                }
+                continue;
+            }
+        };
+
+        let id: Option<RequestId> = json_msg
+            .get("id")
+            .and_then(|v| serde_json::from_value(v.clone()).ok());
+
+        if !initialized {
+            if let Some("initialize") = json_msg.get("method").and_then(|m| m.as_str()) {
+                match serde_json::from_value::<InitializeRequest>(json_msg) {
+                    Ok(init_request) => match handler.handle_initialize(init_request).await {
+                        Ok(init_response) => {
+                            initialized = true;
+                            let response = JsonRpcMessage::success(id, init_response);
+                            if socket
+                                .send(axum::extract::ws::Message::Text(
+                                    serde_json::to_string(&response).unwrap(),
+                                ))
                                 .await
+                                .is_err()
                             {
-                                error!("Failed to send error response: {}", e);
+                                error!("Failed to send initialize response");
                                 break;
                             }
                         }
+                        Err(e) => {
+                            let response = JsonRpcMessage::from_error(id, e);
+                            if socket
+                                .send(axum::extract::ws::Message::Text(
+                                    serde_json::to_string(&response).unwrap(),
+                                ))
+                                .await
+                                .is_err()
+                            {
+                                error!("Failed to send initialize error response");
+                                break;
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        let response = JsonRpcMessage::error(
+                            id,
+                            -32602,
+                            format!("Invalid initialize request: {}", e),
+                        );
+                        if socket
+                            .send(axum::extract::ws::Message::Text(
+                                serde_json::to_string(&response).unwrap(),
+                            ))
+                            .await
+                            .is_err()
+                        {
+                            error!("Failed to send invalid initialize request response");
+                            break;
+                        }
                     }
-                } else {
-                    warn!("Received non-text WebSocket message, ignoring");
+                }
+            } else {
+                let response = JsonRpcMessage::error(id, -32002, "Server not initialized");
+                if socket
+                    .send(axum::extract::ws::Message::Text(
+                        serde_json::to_string(&response).unwrap(),
+                    ))
+                    .await
+                    .is_err()
+                {
+                    error!("Failed to send 'not initialized' error response");
+                    break;
                 }
             }
-            Err(e) => {
-                error!("WebSocket error: {}", e);
+        } else if let Some(response) = handle_mcp_method(&handler, &json_msg).await {
+            if socket
+                .send(axum::extract::ws::Message::Text(
+                    serde_json::to_string(&response).unwrap(),
+                ))
+                .await
+                .is_err()
+            {
+                error!("Failed to send WebSocket response");
                 break;
             }
         }
@@ -760,17 +679,17 @@ impl MessageHandler for ServerMessageHandler {
 
 /// HTTP request handler for MCP over HTTP
 async fn handle_http_request(
-    axum::extract::State(_handler): axum::extract::State<Arc<ServerMessageHandler>>,
+    axum::extract::State(handler): axum::extract::State<Arc<ServerMessageHandler>>,
     axum::Json(request): axum::Json<serde_json::Value>,
 ) -> axum::Json<serde_json::Value> {
-    // For now, return a simple response indicating HTTP support is available
-    // This would need full protocol implementation similar to the WebSocket handler
-    axum::Json(json!({
-        "jsonrpc": "2.0",
-        "error": {
-            "code": -32601,
-            "message": "HTTP transport not fully implemented yet - use WebSocket or stdio"
-        },
-        "id": request.get("id").cloned()
-    }))
+    if let Some(response) = handle_mcp_method(&handler, &request).await {
+        axum::Json(serde_json::to_value(response).unwrap())
+    } else {
+        // This case is for notifications, which don't have a response.
+        // HTTP doesn't really have a concept of notifications in the same way as WebSocket,
+        // so we'll return an empty response with a 204 No Content status code.
+        // However, Axum's Json type doesn't directly support changing the status code,
+        // so for now we'll return an empty JSON object.
+        axum::Json(json!({}))
+    }
 }
