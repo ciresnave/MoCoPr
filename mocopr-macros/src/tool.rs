@@ -26,7 +26,14 @@ pub fn derive_tool_impl(input: DeriveInput) -> Result<TokenStream> {
                 if meta.path.is_ident("name") {
                     let value = meta.value()?;
                     let lit_str: syn::LitStr = value.parse()?;
-                    tool_name = Some(lit_str.value());
+                    let name_val = lit_str.value();
+                    if name_val.is_empty() {
+                        return Err(meta.error("tool name cannot be empty"));
+                    }
+                    if !name_val.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+                        return Err(meta.error("tool name must only contain alphanumeric characters, underscores, or hyphens"));
+                    }
+                    tool_name = Some(name_val);
                     Ok(())
                 } else if meta.path.is_ident("description") {
                     let value = meta.value()?;
@@ -34,7 +41,12 @@ pub fn derive_tool_impl(input: DeriveInput) -> Result<TokenStream> {
                     tool_description = Some(lit_str.value());
                     Ok(())
                 } else {
-                    Err(meta.error("unsupported tool attribute"))
+                    let path = meta
+                        .path
+                        .get_ident()
+                        .map(|i| i.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    Err(meta.error(format!("unsupported tool attribute: `{}`", path)))
                 }
             })?;
         }
@@ -101,7 +113,11 @@ pub fn mcp_tool_impl(args: Meta, input: ItemFn) -> Result<TokenStream> {
             if meta.path.is_ident("name") {
                 let value = meta.value()?;
                 let lit_str: syn::LitStr = value.parse()?;
-                tool_name = lit_str.value();
+                let name_val = lit_str.value();
+                if name_val.is_empty() {
+                    return Err(meta.error("tool name cannot be empty"));
+                }
+                tool_name = name_val;
                 Ok(())
             } else if meta.path.is_ident("description") {
                 let value = meta.value()?;
@@ -109,7 +125,12 @@ pub fn mcp_tool_impl(args: Meta, input: ItemFn) -> Result<TokenStream> {
                 tool_description = lit_str.value();
                 Ok(())
             } else {
-                Err(meta.error("unsupported tool attribute"))
+                let path = meta
+                    .path
+                    .get_ident()
+                    .map(|i| i.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
+                Err(meta.error(format!("unsupported tool attribute: `{}`", path)))
             }
         });
     }

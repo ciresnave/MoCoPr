@@ -728,7 +728,7 @@ mod tests {
             } else {
                 None
             },
-            id: Some(RequestId::Number(1)),
+            id: Some(serde_json::Value::Number(1.into())),
         }
     }
 
@@ -890,7 +890,7 @@ mod tests {
             // Test the middleware's extract_resource method with path traversal attempts
             let malicious_request = JsonRpcRequest {
                 jsonrpc: "2.0".to_string(),
-                id: Some(RequestId::Number(1)),
+                id: Some(serde_json::Value::Number(1.into())),
                 method: "resources/read".to_string(),
                 params: Some(serde_json::json!({
                     "uri": malicious_path

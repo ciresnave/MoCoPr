@@ -1,5 +1,5 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use mocopr_core::{JsonRpcRequest, RequestId, Tool, ToolParameter};
+use mocopr_core::{JsonRpcRequest, RequestId, Tool, ToolParameter, utils::json};
 use serde_json::json;
 use std::time::Duration;
 
@@ -22,12 +22,12 @@ fn bench_message_serialization(c: &mut Criterion) {
 
         group.throughput(Throughput::Bytes(*size as u64));
         group.bench_with_input(BenchmarkId::new("serialize", size), size, |b, _size| {
-            b.iter(|| serde_json::to_string(&message).unwrap());
+            b.iter(|| json::to_string(&message).unwrap());
         });
 
-        let serialized = serde_json::to_string(&message).unwrap();
+        let serialized = json::to_string(&message).unwrap();
         group.bench_with_input(BenchmarkId::new("deserialize", size), size, |b, _size| {
-            b.iter(|| serde_json::from_str::<JsonRpcRequest>(&serialized).unwrap());
+            b.iter(|| json::from_str::<JsonRpcRequest>(&serialized).unwrap());
         });
     }
     group.finish();
@@ -118,16 +118,16 @@ fn bench_resource_content_serialization(c: &mut Criterion) {
             BenchmarkId::new("text_serialize", size_kb),
             &text_content,
             |b, content| {
-                b.iter(|| serde_json::to_string(content).unwrap());
+                b.iter(|| json::to_string(content).unwrap());
             },
         );
 
-        let serialized = serde_json::to_string(&text_content).unwrap();
+        let serialized = json::to_string(&text_content).unwrap();
         group.bench_with_input(
             BenchmarkId::new("text_deserialize", size_kb),
             &serialized,
             |b, data| {
-                b.iter(|| serde_json::from_str::<String>(data).unwrap());
+                b.iter(|| json::from_str::<String>(data).unwrap());
             },
         );
     }
@@ -153,20 +153,20 @@ fn bench_large_payload_processing(c: &mut Criterion) {
     group.bench_function("batch_serialize", |b| {
         b.iter(|| {
             for message in &messages {
-                let _serialized = serde_json::to_string(message).unwrap();
+                let _serialized = json::to_string(message).unwrap();
             }
         });
     });
 
     let serialized_messages: Vec<String> = messages
         .iter()
-        .map(|msg| serde_json::to_string(msg).unwrap())
+        .map(|msg| json::to_string(msg).unwrap())
         .collect();
 
     group.bench_function("batch_deserialize", |b| {
         b.iter(|| {
             for serialized in &serialized_messages {
-                let _deserialized: JsonRpcRequest = serde_json::from_str(serialized).unwrap();
+                let _deserialized: JsonRpcRequest = json::from_str(serialized).unwrap();
             }
         });
     });
@@ -185,12 +185,12 @@ fn bench_concurrent_message_processing(c: &mut Criterion) {
         params: Some(json!({"test": "data"})),
     };
 
-    let serialized = serde_json::to_string(&message).unwrap();
+    let serialized = json::to_string(&message).unwrap();
 
     group.bench_function("message_roundtrip", |b| {
         b.iter(|| {
-            let _serialized = serde_json::to_string(&message).unwrap();
-            let _deserialized: JsonRpcRequest = serde_json::from_str(&serialized).unwrap();
+            let _serialized = json::to_string(&message).unwrap();
+            let _deserialized: JsonRpcRequest = json::from_str(&serialized).unwrap();
         });
     });
 

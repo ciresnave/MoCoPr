@@ -56,7 +56,6 @@
 
 use mocopr_core::prelude::*;
 use mocopr_core::transport::{TransportConfig, TransportFactory};
-use mocopr_core::utils::Utils;
 use std::sync::Arc;
 
 /// High-level MCP client for connecting to and interacting with MCP servers.
@@ -401,7 +400,7 @@ impl McpClient {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "resources/list".to_string(),
-            params: Some(Utils::to_json_value(&ResourcesListRequest::new())?),
+            params: Some(serde_json::to_value(&ResourcesListRequest::new())?),
         };
 
         let response = self.session.send_request(request).await?;
@@ -413,7 +412,7 @@ impl McpClient {
             .result
             .ok_or_else(|| Error::Server("Missing result in response".to_string()))?;
 
-        Utils::from_json_value(result)
+        Ok(serde_json::from_value(result)?)
     }
 
     /// Read a resource
@@ -459,7 +458,7 @@ impl McpClient {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "resources/read".to_string(),
-            params: Some(Utils::to_json_value(&ResourcesReadRequest { uri })?),
+            params: Some(serde_json::to_value(&ResourcesReadRequest { uri })?),
         };
 
         let response = self.session.send_request(request).await?;
@@ -471,7 +470,7 @@ impl McpClient {
             .result
             .ok_or_else(|| Error::Server("Missing result in response".to_string()))?;
 
-        Utils::from_json_value(result)
+        Ok(serde_json::from_value(result)?)
     }
 
     /// List available tools
@@ -514,7 +513,7 @@ impl McpClient {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "tools/list".to_string(),
-            params: Some(Utils::to_json_value(&ToolsListRequest::new())?),
+            params: Some(serde_json::to_value(&ToolsListRequest::new())?),
         };
 
         let response = self.session.send_request(request).await?;
@@ -526,7 +525,7 @@ impl McpClient {
             .result
             .ok_or_else(|| Error::Server("Missing result in response".to_string()))?;
 
-        Utils::from_json_value(result)
+        Ok(serde_json::from_value(result)?)
     }
 
     /// Call a tool
@@ -582,7 +581,7 @@ impl McpClient {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "tools/call".to_string(),
-            params: Some(Utils::to_json_value(&ToolsCallRequest { name, arguments })?),
+            params: Some(serde_json::to_value(&ToolsCallRequest { name, arguments })?),
         };
 
         let response = self.session.send_request(request).await?;
@@ -594,7 +593,7 @@ impl McpClient {
             .result
             .ok_or_else(|| Error::Server("Missing result in response".to_string()))?;
 
-        Utils::from_json_value(result)
+        Ok(serde_json::from_value(result)?)
     }
 
     /// List available prompts
@@ -638,7 +637,7 @@ impl McpClient {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "prompts/list".to_string(),
-            params: Some(Utils::to_json_value(&PromptsListRequest::new())?),
+            params: Some(serde_json::to_value(&PromptsListRequest::new())?),
         };
 
         let response = self.session.send_request(request).await?;
@@ -650,7 +649,7 @@ impl McpClient {
             .result
             .ok_or_else(|| Error::Server("Missing result in response".to_string()))?;
 
-        Utils::from_json_value(result)
+        Ok(serde_json::from_value(result)?)
     }
 
     /// Get a prompt
@@ -709,7 +708,7 @@ impl McpClient {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "prompts/get".to_string(),
-            params: Some(Utils::to_json_value(&PromptsGetRequest {
+            params: Some(serde_json::to_value(&PromptsGetRequest {
                 name,
                 arguments,
             })?),
@@ -724,7 +723,7 @@ impl McpClient {
             .result
             .ok_or_else(|| Error::Server("Missing result in response".to_string()))?;
 
-        Utils::from_json_value(result)
+        Ok(serde_json::from_value(result)?)
     }
 
     /// Send a ping to the server
@@ -769,7 +768,7 @@ impl McpClient {
             jsonrpc: "2.0".to_string(),
             id: Some(Protocol::generate_request_id()),
             method: "ping".to_string(),
-            params: Some(Utils::to_json_value(&PingRequest { message })?),
+            params: Some(serde_json::to_value(&PingRequest { message })?),
         };
 
         let response = self.session.send_request(request).await?;
@@ -781,7 +780,7 @@ impl McpClient {
             .result
             .ok_or_else(|| Error::Server("Missing result in response".to_string()))?;
 
-        Utils::from_json_value(result)
+        Ok(serde_json::from_value(result)?)
     }
 
     /// Close the client connection

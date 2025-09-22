@@ -94,6 +94,56 @@ impl Middleware for LoggingMiddleware {
     }
 }
 
+/// Timeout middleware
+pub struct TimeoutMiddleware {
+    timeout: std::time::Duration,
+    request_start_times: std::sync::Arc<
+        tokio::sync::RwLock<std::collections::HashMap<String, std::time::Instant>>,
+    >,
+}
+
+impl TimeoutMiddleware {
+    pub fn new(timeout: std::time::Duration) -> Self {
+        Self {
+            timeout,
+            request_start_times: std::sync::Arc::new(tokio::sync::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Middleware for TimeoutMiddleware {
+    async fn before_request(&self, request: &JsonRpcRequest) -> Result<()> {
+        if let Some(id) = request.id.clone() {
+            let mut start_times = self.request_start_times.write().await;
+            start_times.insert(id.to_string(), std::time::Instant::now());
+        }
+        Ok(())
+    }
+
+    async fn after_response(
+        &self,
+        request: &JsonRpcRequest,
+        _response: &JsonRpcResponse,
+    ) -> Result<()> {
+        if let Some(id) = &request.id {
+            let mut start_times = self.request_start_times.write().await;
+            if let Some(start_time) = start_times.remove(&id.to_string()) {
+                if start_time.elapsed() > self.timeout {
+                    return Err(Error::Timeout);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn on_error(&self, _request: &JsonRpcRequest, _error: &Error) -> Result<()> {
+        Ok(())
+    }
+}
+
 /// Rate limiting middleware
 pub struct RateLimitMiddleware {
     rate_limiter: std::sync::Arc<tokio::sync::Mutex<mocopr_core::utils::RateLimiter>>,
@@ -269,10 +319,7 @@ impl Middleware for MetricsMiddleware {
         let request_key = request
             .id
             .as_ref()
-            .map(|id| match id {
-                RequestId::String(s) => s.clone(),
-                RequestId::Number(n) => n.to_string(),
-            })
+            .map(|id| id.to_string())
             .unwrap_or_else(|| request.method.clone());
 
         let mut start_times = self.request_start_times.write().await;
@@ -290,10 +337,7 @@ impl Middleware for MetricsMiddleware {
         let request_key = request
             .id
             .as_ref()
-            .map(|id| match id {
-                RequestId::String(s) => s.clone(),
-                RequestId::Number(n) => n.to_string(),
-            })
+            .map(|id| id.to_string())
             .unwrap_or_else(|| request.method.clone());
 
         let mut start_times = self.request_start_times.write().await;

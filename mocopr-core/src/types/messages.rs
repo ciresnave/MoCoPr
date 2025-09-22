@@ -18,7 +18,7 @@ pub struct LoggingNotification {
 pub struct CancelledNotification {
     /// ID of the request being cancelled
     #[serde(rename = "requestId")]
-    pub request_id: RequestId,
+    pub request_id: serde_json::Value,
     /// Optional reason for cancellation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -56,13 +56,13 @@ pub struct InitializeResponse {
 }
 
 /// Initialized notification - sent by client after receiving initialize response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct InitializedNotification {
     // No additional fields required
 }
 
 /// Ping request for connection health check
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PingRequest {
     /// Optional message to send with the ping
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -1,7 +1,7 @@
 //! Message routing for MCP protocol
 
 use super::*;
-use crate::{Result, utils::Utils};
+use crate::Result;
 use std::sync::Arc;
 
 /// Message router for dispatching MCP messages to handlers
@@ -65,70 +65,70 @@ impl MessageRouter {
             "initialize" => {
                 let req: InitializeRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_initialize(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "ping" => {
                 let req: PingRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_ping(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "resources/list" => {
                 let req: ResourcesListRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_resources_list(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "resources/read" => {
                 let req: ResourcesReadRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_resources_read(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "resources/subscribe" => {
                 let req: ResourcesSubscribeRequest =
                     self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_resources_subscribe(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "resources/unsubscribe" => {
                 let req: ResourcesUnsubscribeRequest =
                     self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_resources_unsubscribe(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "tools/list" => {
                 let req: ToolsListRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_tools_list(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "tools/call" => {
                 let req: ToolsCallRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_tools_call(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "prompts/list" => {
                 let req: PromptsListRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_prompts_list(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "prompts/get" => {
                 let req: PromptsGetRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_prompts_get(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "logging/setLevel" => {
                 let req: LoggingSetLevelRequest =
                     self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_logging_set_level(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "sampling/createMessage" => {
                 let req: CreateMessageRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_sampling_create_message(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             "roots/list" => {
                 let req: RootsListRequest = self.deserialize_params(request.params.as_ref())?;
                 let response = self.handler.handle_roots_list(req).await?;
-                Utils::to_json_value(&response)
+                Ok(serde_json::to_value(&response)?)
             }
             method => {
                 // Handle custom methods
@@ -203,8 +203,10 @@ impl MessageRouter {
         params: Option<&serde_json::Value>,
     ) -> Result<T> {
         match params {
-            Some(value) => Utils::from_json_value(value.clone()),
-            None => Utils::from_json_value(serde_json::Value::Object(serde_json::Map::new())),
+            Some(value) => Ok(serde_json::from_value(value.clone())?),
+            None => Ok(serde_json::from_value(serde_json::Value::Object(
+                serde_json::Map::new(),
+            ))?),
         }
     }
 }

@@ -232,7 +232,7 @@ async fn test_large_batch_operations() -> Result<()> {
                 "index": i,
                 "data": format!("batch_item_{}", i)
             })),
-            id: Some(RequestId::String(format!("batch_{i}"))),
+            id: Some(serde_json::Value::String(format!("batch_{i}"))),
         };
         requests.push(request);
     }
@@ -279,7 +279,9 @@ async fn test_concurrent_serialization() -> Result<()> {
                             .unwrap_or_default()
                             .as_secs()
                     })),
-                    Some(RequestId::from(format!("worker_{worker_id}_{item_id}"))),
+                    Some(serde_json::Value::String(format!(
+                        "worker_{worker_id}_{item_id}"
+                    ))),
                 );
 
                 // Test serialization under concurrency
@@ -327,7 +329,7 @@ async fn test_memory_pressure() -> Result<()> {
                 "size": LARGE_ALLOCATION_SIZE,
                 "data": large_data
             })),
-            Some(RequestId::from(format!("memory_test_{i}"))),
+            Some(serde_json::Value::String(format!("memory_test_{i}"))),
         );
 
         // Serialize large object
@@ -370,7 +372,7 @@ async fn test_timeout_scenarios() -> Result<()> {
                 Some(json!({
                     "timeout_ms": duration.as_millis()
                 })),
-                Some(RequestId::from(format!(
+            Some(serde_json::Value::String(format!(
                     "timeout_test_{}",
                     std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
