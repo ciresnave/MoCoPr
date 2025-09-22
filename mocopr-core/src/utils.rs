@@ -3,7 +3,6 @@
 pub mod json;
 
 use crate::Result;
-use serde::{Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 

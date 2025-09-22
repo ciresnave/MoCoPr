@@ -287,6 +287,26 @@ impl McpServerBuilder {
         self
     }
 
+    /// Adds a timeout to all requests.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - The timeout duration.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use mocopr_server::prelude::*;
+    /// use std::time::Duration;
+    ///
+    /// let builder = McpServerBuilder::new()
+    ///     .with_request_timeout(Duration::from_secs(10));
+    /// ```
+    pub fn with_request_timeout(self, timeout: std::time::Duration) -> Self {
+        use crate::middleware::TimeoutMiddleware;
+        self.with_middleware(TimeoutMiddleware::new(timeout))
+    }
+
     /// Enable monitoring system
     ///
     /// # Examples
@@ -414,38 +434,103 @@ macro_rules! mcp_server {
     (
         name: $name:expr,
         version: $version:expr,
-        $( $config:tt )*
+        $( transport: { $( $transport_field:ident : $transport_value:expr ),* $(,)? } )?
+        $(, capabilities: { $( $capability_field:ident : $capability_value:expr ),* $(,)? } )?
+        $(, middleware: [ $( $middleware:expr ),* $(,)? ] )?
+        $(, resources: [ $( $resource:expr ),* $(,)? ] )?
+        $(, tools: [ $( $tool:expr ),* $(,)? ] )?
+        $(, prompts: [ $( $prompt:expr ),* $(,)? ] )?
+        $(,)?
     ) => {
         {
             let mut builder = $crate::McpServerBuilder::new()
                 .with_info($name, $version);
 
-            mcp_server_config!(builder, $( $config )*);
+            $(
+                $(
+                    mcp_server_transport!(builder, $transport_field, $transport_value);
+                )*
+            )?
+
+            $(
+                $(
+                    mcp_server_capability!(builder, $capability_field, $capability_value);
+                )*
+            )?
+
+            $(
+                $(
+                    builder = builder.with_middleware($middleware);
+                )*
+            )?
+
+            $(
+                $(
+                    builder = builder.with_resource($resource);
+                )*
+            )?
+
+            $(
+                $(
+                    builder = builder.with_tool($tool);
+                )*
+            )?
+
+            $(
+                $(
+                    builder = builder.with_prompt($prompt);
+                )*
+            )?
+
             builder
         }
     };
 }
 
-/// Helper macro for server configuration
 #[macro_export]
-macro_rules! mcp_server_config {
-    ($builder:ident, resources: true, $( $rest:tt )*) => {
-        $builder = $builder.with_resources();
-        mcp_server_config!($builder, $( $rest )*);
+#[doc(hidden)]
+macro_rules! mcp_server_transport {
+    ($builder:ident, http, $value:expr) => {
+        if $value {
+            $builder = $builder.with_http_transport();
+        }
     };
-    ($builder:ident, tools: true, $( $rest:tt )*) => {
-        $builder = $builder.with_tools();
-        mcp_server_config!($builder, $( $rest )*);
+    ($builder:ident, websocket, $value:expr) => {
+        if $value {
+            $builder = $builder.with_websocket_transport();
+        }
     };
-    ($builder:ident, prompts: true, $( $rest:tt )*) => {
-        $builder = $builder.with_prompts();
-        mcp_server_config!($builder, $( $rest )*);
+    ($builder:ident, address, $value:expr) => {
+        $builder = $builder.with_bind_address($value, $builder.port());
     };
-    ($builder:ident, logging: true, $( $rest:tt )*) => {
-        $builder = $builder.with_logging();
-        mcp_server_config!($builder, $( $rest )*);
+    ($builder:ident, port, $value:expr) => {
+        $builder = $builder.with_bind_address($builder.bind_address().to_string(), $value);
     };
-    ($builder:ident,) => {};
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! mcp_server_capability {
+    ($builder:ident, resources, $value:expr) => {
+        if $value {
+            $builder = $builder.with_resources();
+        }
+    };
+    ($builder:ident, tools, $value:expr) => {
+        if $value {
+            $builder = $builder.with_tools();
+        }
+    };
+    ($builder:ident, prompts, $value:expr) => {
+        if $value {
+            $builder = $builder.with_prompts();
+        }
+    };
+    ($builder:ident, logging, $value:expr) => {
+        if $value {
+            $builder = $builder.with_logging();
+        }
+    };
 }
 
 #[cfg(test)]

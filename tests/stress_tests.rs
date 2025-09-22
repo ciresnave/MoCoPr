@@ -27,7 +27,7 @@ async fn stress_test_message_serialization() -> Result<()> {
                             "data": format!("test_data_{}", i)
                         }
                     })),
-                    id: Some(RequestId::String(format!("{batch}_{i}"))),
+                    id: Some(serde_json::Value::String(format!("{batch}_{i}"))),
                 };
 
                 // Serialize
@@ -113,7 +113,7 @@ async fn stress_test_concurrent_operations() -> Result<()> {
                     Some(json!({
                         "uri": format!("memory://{}", key)
                     })),
-                    Some(RequestId::from(format!("{worker_id}_{op_id}"))),
+                    Some(serde_json::Value::String(format!("{worker_id}_{op_id}"))),
                 );
 
                 let _serialized = serde_json::to_string(&message)?;
@@ -182,7 +182,7 @@ async fn stress_test_memory_efficiency() -> Result<()> {
                     "index": j,
                     "data": format!("test_data_{}_{}", i, j)
                 })),
-                Some(RequestId::from(format!("{i}_{j}"))),
+                Some(serde_json::Value::String(format!("{i}_{j}"))),
             );
 
             messages.push(message);
@@ -250,7 +250,7 @@ async fn stress_test_tool_parameter_handling() -> Result<()> {
                 "name": "test_tool",
                 "arguments": params
             })),
-            Some(RequestId::from(uuid::Uuid::new_v4())),
+            Some(serde_json::Value::String(uuid::Uuid::new_v4().to_string())),
         );
 
         // Simulate validation time
@@ -323,7 +323,7 @@ async fn memory_stress_test() -> Result<(), Box<dyn std::error::Error>> {
                             "iteration": i
                         }
                     })),
-                    Some(RequestId::from(request_id)),
+                    Some(serde_json::Value::String(request_id)),
                 );
 
                 large_data.push(message);
@@ -408,7 +408,7 @@ async fn connection_failure_recovery_test() -> Result<(), Box<dyn std::error::Er
                             "client_id": client_id,
                             "attempt": attempt
                         })),
-                        Some(RequestId::from(format!(
+                        Some(serde_json::Value::String(format!(
                             "conn_test_{}_{}",
                             client_id, attempt
                         ))),
@@ -455,19 +455,19 @@ async fn protocol_edge_cases_test() -> Result<(), Box<dyn std::error::Error>> {
             jsonrpc: "2.0".to_string(),
             method: "".to_string(), // empty method
             params: None,
-            id: Some(RequestId::String("edge_1".to_string())),
+            id: Some(serde_json::Value::String("edge_1".to_string())),
         },
         JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: "tools/call".to_string(),
             params: Some(serde_json::json!({})), // empty params
-            id: Some(RequestId::String("edge_2".to_string())),
+            id: Some(serde_json::Value::String("edge_2".to_string())),
         },
         JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: "tools/call".to_string(),
             params: Some(serde_json::json!({"arguments": "x".repeat(1024 * 1024)})), // large payload
-            id: Some(RequestId::String("edge_3".to_string())),
+            id: Some(serde_json::Value::String("edge_3".to_string())),
         },
     ];
     for req in edge_cases {

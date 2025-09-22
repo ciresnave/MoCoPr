@@ -37,7 +37,7 @@ fn create_test_request(
         } else {
             None
         },
-        id: Some(RequestId::Number(1)),
+        id: Some(serde_json::Value::Number(1.into())),
     }
 }
 
@@ -300,7 +300,7 @@ async fn test_anonymous_user_restrictions() -> Result<()> {
             jsonrpc: "2.0".to_string(),
             method: method.to_string(),
             params,
-            id: Some(RequestId::Number(1)),
+            id: Some(serde_json::Value::Number(1.into())),
         };
 
         let result = rbac.before_request(&request).await;
@@ -380,21 +380,21 @@ async fn test_malformed_request_security() -> Result<()> {
             jsonrpc: "2.0".to_string(),
             method: "".to_string(),
             params: None,
-            id: Some(RequestId::Number(1)),
+            id: Some(1.into()),
         },
         // Extremely long method name
         JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: "x".repeat(10000),
             params: None,
-            id: Some(RequestId::Number(2)),
+            id: Some(2.into()),
         },
         // Method with control characters
         JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: "tools/call\x00\x01\x02".to_string(),
             params: None,
-            id: Some(RequestId::Number(3)),
+            id: Some(3.into()),
         },
     ];
 

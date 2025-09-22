@@ -18,7 +18,7 @@ pub struct LoggingNotification {
 pub struct CancelledNotification {
     /// ID of the request being cancelled
     #[serde(rename = "requestId")]
-    pub request_id: RequestId,
+    pub request_id: serde_json::Value,
     /// Optional reason for cancellation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,

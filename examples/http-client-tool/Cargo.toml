@@ -7,7 +7,7 @@ edition = "2021"
 mocopr-server = { path = "../../mocopr-server" }
 mocopr-core = { path = "../../mocopr-core" }
 mocopr-macros = { path = "../../mocopr-macros" }
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.47", features = ["full"] }
 anyhow = "1.0"
 serde_json = "1.0"
 tracing = "0.1"

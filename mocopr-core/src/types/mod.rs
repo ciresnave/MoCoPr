@@ -6,7 +6,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use url::Url;
-use uuid::Uuid;
 
 pub mod capabilities;
 pub mod messages;
@@ -30,7 +29,7 @@ pub struct JsonRpcRequest {
     /// JSON-RPC protocol version (should be "2.0")
     pub jsonrpc: String,
     /// Unique identifier for the request
-    pub id: Option<RequestId>,
+    pub id: Option<serde_json::Value>,
     /// Name of the method to be invoked
     pub method: String,
     /// Parameters to the method (can be by-position or by-name)
@@ -43,7 +42,7 @@ pub struct JsonRpcResponse {
     /// JSON-RPC protocol version (should be "2.0")
     pub jsonrpc: String,
     /// Identifier matching the request this is a response to
-    pub id: Option<RequestId>,
+    pub id: Option<serde_json::Value>,
     /// Result of the method call (only present if the call succeeded)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
@@ -75,48 +74,6 @@ pub struct JsonRpcError {
     pub data: Option<serde_json::Value>,
 }
 
-/// Request ID can be string, number, or null
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(untagged)]
-pub enum RequestId {
-    /// String identifier
-    String(String),
-    /// Numeric identifier
-    Number(i64),
-}
-
-impl From<String> for RequestId {
-    fn from(s: String) -> Self {
-        RequestId::String(s)
-    }
-}
-
-impl From<&str> for RequestId {
-    fn from(s: &str) -> Self {
-        RequestId::String(s.to_string())
-    }
-}
-
-impl From<i64> for RequestId {
-    fn from(n: i64) -> Self {
-        RequestId::Number(n)
-    }
-}
-
-impl From<Uuid> for RequestId {
-    fn from(uuid: Uuid) -> Self {
-        RequestId::String(uuid.to_string())
-    }
-}
-
-impl std::fmt::Display for RequestId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RequestId::String(s) => write!(f, "{s}"),
-            RequestId::Number(n) => write!(f, "{n}"),
-        }
-    }
-}
 
 /// Progress token for tracking long-running operations
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -432,7 +432,7 @@ mod tests {
         let extractor = DefaultContextExtractor;
         let request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
-            id: Some(RequestId::Number(1)),
+            id: Some(serde_json::Value::Number(1.into())),
             method: "tools/call".to_string(),
             params: Some(json!({
                 "auth": {

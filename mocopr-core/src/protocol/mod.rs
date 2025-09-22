@@ -69,7 +69,7 @@ impl Protocol {
     pub fn create_request(
         method: &str,
         params: Option<Value>,
-        id: Option<RequestId>,
+        id: Option<serde_json::Value>,
     ) -> JsonRpcRequest {
         JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -81,7 +81,7 @@ impl Protocol {
 
     /// Create a JSON-RPC response
     pub fn create_response(
-        id: Option<RequestId>,
+        id: Option<serde_json::Value>,
         result: Option<Value>,
         error: Option<JsonRpcError>,
     ) -> JsonRpcResponse {
@@ -112,8 +112,8 @@ impl Protocol {
     }
 
     /// Generate a unique request ID
-    pub fn generate_request_id() -> RequestId {
-        RequestId::from(Uuid::new_v4())
+    pub fn generate_request_id() -> serde_json::Value {
+        serde_json::Value::String(Uuid::new_v4().to_string())
     }
 
     /// Parse a JSON-RPC message from string
@@ -208,8 +208,10 @@ impl Protocol {
     }
 }
 
+use serde::Serialize;
 /// Unified JSON-RPC message type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum JsonRpcMessage {
     /// A JSON-RPC request message with a method to call and optional parameters
     Request(JsonRpcRequest),
@@ -220,8 +222,42 @@ pub enum JsonRpcMessage {
 }
 
 impl JsonRpcMessage {
+    /// Creates a new success response message.
+    pub fn success<T: Serialize>(id: Option<serde_json::Value>, result: T) -> Self {
+        JsonRpcMessage::Response(JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: Some(serde_json::to_value(result).unwrap()),
+            error: None,
+        })
+    }
+
+    /// Creates a new error response message.
+    pub fn error(id: Option<serde_json::Value>, code: i32, message: impl Into<String>) -> Self {
+        JsonRpcMessage::Response(JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code,
+                message: message.into(),
+                data: None,
+            }),
+        })
+    }
+
+    /// Creates a new error response from an `Error`.
+    pub fn from_error(id: Option<serde_json::Value>, error: Error) -> Self {
+        let json_rpc_error = Protocol::error_to_jsonrpc(&error);
+        JsonRpcMessage::Response(JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(json_rpc_error),
+        })
+    }
     /// Get the message ID if it exists
-    pub fn id(&self) -> Option<&RequestId> {
+    pub fn id(&self) -> Option<&serde_json::Value> {
         match self {
             JsonRpcMessage::Request(req) => req.id.as_ref(),
             JsonRpcMessage::Response(resp) => resp.id.as_ref(),
