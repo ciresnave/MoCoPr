@@ -393,16 +393,6 @@ impl McpServerBuilder {
         self
     }
 
-    /// Get the configured port.
-    pub fn port(&self) -> u16 {
-        self.port
-    }
-
-    /// Get the configured bind address.
-    pub fn bind_address(&self) -> &str {
-        &self.bind_address
-    }
-
     /// Build the MCP server
     pub fn build(self) -> Result<McpServer> {
         let name = self

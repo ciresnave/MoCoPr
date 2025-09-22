@@ -33,7 +33,10 @@ impl HttpGetTool {
 #[async_trait::async_trait]
 impl ToolExecutor for HttpGetTool {
     /// Executes the tool to fetch the content of a URL.
-    async fn execute(&self, arguments: Option<Value>) -> mocopr_core::Result<ToolsCallResponse> {
+    async fn execute(
+        &self,
+        arguments: Option<Value>,
+    ) -> mocopr_core::Result<ToolsCallResponse> {
         let args = arguments.unwrap_or_default();
         let url = match args.get("url").and_then(|v| v.as_str()) {
             Some(url) => url,
@@ -58,8 +61,7 @@ impl ToolExecutor for HttpGetTool {
 
         match self.client.get(url).send().await {
             Ok(response) => {
-                let status = response.status();
-                if status.is_success() {
+                if response.status().is_success() {
                     match response.text().await {
                         Ok(text) => Ok(ToolsCallResponse::success(vec![Content::Text(
                             TextContent::new(&text),
@@ -68,7 +70,7 @@ impl ToolExecutor for HttpGetTool {
                             StructuredErrorContent::new(
                                 "read_response_text_error",
                                 &format!("Failed to read response text: {}", e),
-                                Some(status.as_u16()),
+                                Some(response.status().as_u16()),
                             ),
                         )])),
                     }
@@ -76,8 +78,8 @@ impl ToolExecutor for HttpGetTool {
                     Ok(ToolsCallResponse::error(vec![Content::StructuredError(
                         StructuredErrorContent::new(
                             "http_error",
-                            &format!("Request failed with status: {}", status),
-                            Some(status.as_u16()),
+                            &format!("Request failed with status: {}", response.status()),
+                            Some(response.status().as_u16()),
                         ),
                     )]))
                 }

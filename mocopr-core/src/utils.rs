@@ -10,6 +10,36 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct Utils;
 
 impl Utils {
+    /// Convert a serializable object to a JSON value.
+    ///
+    /// This utility method converts any Rust type that implements the `Serialize` trait
+    /// into a `serde_json::Value` representation, which is useful for generic JSON handling.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to convert to JSON
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing either the JSON value or an error if serialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use mocopr_core::utils::Utils;
+    /// use serde::Serialize;
+    ///
+    /// #[derive(Serialize)]
+    /// struct Person {
+    ///     name: String,
+    ///     age: u32,
+    /// }
+    ///
+    /// let person = Person {
+    ///     name: "Alice".to_string(),
+    ///     age: 30,
+    /// };
+    ///
     /// Get current timestamp as seconds since Unix epoch.
     ///
     /// This utility method provides a consistent way to get the current time

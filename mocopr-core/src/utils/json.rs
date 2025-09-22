@@ -7,6 +7,8 @@
 //! By default, it uses `serde_json`, but can be configured to use `simd-json`
 //! for improved performance by enabling the `simd-json-performance` feature.
 
+use serde::de::DeserializeOwned;
+use crate::{Error, Result};
 use crate::{Error, Result};
 use serde::de::DeserializeOwned;
 
@@ -37,9 +39,13 @@ json_parse_fn! {
     /// A `Result` containing the parsed value or an error
     cfg(feature = "simd-json-performance"),
     fn from_str<T>(s: &str) -> Result<T> {
-        // simd-json expects a mutable buffer; we convert the string to a mutable byte vector.
-        let mut bytes = s.as_bytes().to_vec();
-        simd_json::from_slice(&mut bytes).map_err(|e| Error::Json(e.to_string()))
+        // Unsafe is required here because simd-json expects a mutable string,
+        // which it modifies in-place for performance. We create a mutable
+        // copy of the string to safely meet this requirement.
+        let mut s_mut = s.to_string();
+        unsafe {
+            simd_json::from_str(&mut s_mut).map_err(|e| Error::Json(e.to_string()))
+        }
     }
 }
 
