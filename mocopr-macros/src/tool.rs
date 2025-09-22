@@ -30,6 +30,9 @@ pub fn derive_tool_impl(input: DeriveInput) -> Result<TokenStream> {
                     if name_val.is_empty() {
                         return Err(meta.error("tool name cannot be empty"));
                     }
+                    if !name_val.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+                        return Err(meta.error("tool name must only contain alphanumeric characters, underscores, or hyphens"));
+                    }
                     tool_name = Some(name_val);
                     Ok(())
                 } else if meta.path.is_ident("description") {
