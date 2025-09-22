@@ -13,7 +13,7 @@ pub struct Session {
     state: Arc<RwLock<SessionState>>,
     transport: Arc<Mutex<Box<dyn Transport>>>,
     router: MessageRouter,
-    pending_requests: Arc<Mutex<HashMap<RequestId, PendingRequest>>>,
+    pending_requests: Arc<Mutex<HashMap<String, PendingRequest>>>,
     event_sender: mpsc::UnboundedSender<SessionEvent>,
     shutdown_tx: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
@@ -148,7 +148,7 @@ impl Session {
         {
             let mut pending = self.pending_requests.lock().await;
             pending.insert(
-                request_id.clone(),
+                request_id.to_string(),
                 PendingRequest {
                     sender: tx,
                     created_at: std::time::Instant::now(),
@@ -166,7 +166,7 @@ impl Session {
             Ok(result) => result,
             Err(_) => {
                 // Remove from pending requests
-                self.pending_requests.lock().await.remove(&request_id);
+                self.pending_requests.lock().await.remove(&request_id.to_string());
                 Err(Error::Timeout)
             }
         }
@@ -265,7 +265,7 @@ impl Session {
     async fn handle_response(&self, response: &JsonRpcResponse) -> Result<()> {
         if let Some(ref response_id) = response.id {
             let mut pending = self.pending_requests.lock().await;
-            if let Some(pending_request) = pending.remove(response_id) {
+            if let Some(pending_request) = pending.remove(&response_id.to_string()) {
                 let _ = pending_request.sender.send(Ok(response.clone()));
             }
         }

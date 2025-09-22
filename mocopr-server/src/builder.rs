@@ -393,6 +393,16 @@ impl McpServerBuilder {
         self
     }
 
+    /// Get the configured port.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// Get the configured bind address.
+    pub fn bind_address(&self) -> &str {
+        &self.bind_address
+    }
+
     /// Build the MCP server
     pub fn build(self) -> Result<McpServer> {
         let name = self
@@ -501,10 +511,10 @@ macro_rules! mcp_server_transport {
         }
     };
     ($builder:ident, address, $value:expr) => {
-        $builder = $builder.with_bind_address($value, $builder.port);
+        $builder = $builder.with_bind_address($value, $builder.port());
     };
     ($builder:ident, port, $value:expr) => {
-        $builder = $builder.with_bind_address($builder.bind_address.clone(), $value);
+        $builder = $builder.with_bind_address($builder.bind_address().to_string(), $value);
     };
 }
 

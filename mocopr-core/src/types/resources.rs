@@ -864,7 +864,8 @@ impl ResourceContent {
 impl From<String> for ResourceContent {
     fn from(s: String) -> Self {
         ResourceContent::new(
-            url::Url::parse("memory://from_string").unwrap(),
+            url::Url::parse("memory://from_string")
+                .expect("Hardcoded URL 'memory://from_string' should always be valid"),
             vec![Content::from(s)],
         )
     }
@@ -873,7 +874,8 @@ impl From<String> for ResourceContent {
 impl From<&str> for ResourceContent {
     fn from(s: &str) -> Self {
         ResourceContent::new(
-            url::Url::parse("memory://from_str").unwrap(),
+            url::Url::parse("memory://from_str")
+                .expect("Hardcoded URL 'memory://from_str' should always be valid"),
             vec![Content::from(s)],
         )
     }

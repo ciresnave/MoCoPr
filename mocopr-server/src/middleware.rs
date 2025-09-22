@@ -98,7 +98,7 @@ impl Middleware for LoggingMiddleware {
 pub struct TimeoutMiddleware {
     timeout: std::time::Duration,
     request_start_times: std::sync::Arc<
-        tokio::sync::RwLock<std::collections::HashMap<RequestId, std::time::Instant>>,
+        tokio::sync::RwLock<std::collections::HashMap<String, std::time::Instant>>,
     >,
 }
 
@@ -118,7 +118,7 @@ impl Middleware for TimeoutMiddleware {
     async fn before_request(&self, request: &JsonRpcRequest) -> Result<()> {
         if let Some(id) = request.id.clone() {
             let mut start_times = self.request_start_times.write().await;
-            start_times.insert(id, std::time::Instant::now());
+            start_times.insert(id.to_string(), std::time::Instant::now());
         }
         Ok(())
     }
@@ -130,7 +130,7 @@ impl Middleware for TimeoutMiddleware {
     ) -> Result<()> {
         if let Some(id) = &request.id {
             let mut start_times = self.request_start_times.write().await;
-            if let Some(start_time) = start_times.remove(id) {
+            if let Some(start_time) = start_times.remove(&id.to_string()) {
                 if start_time.elapsed() > self.timeout {
                     return Err(Error::Timeout);
                 }
@@ -319,11 +319,7 @@ impl Middleware for MetricsMiddleware {
         let request_key = request
             .id
             .as_ref()
-            .map(|id| match id {
-                RequestId::String(s) => s.clone(),
-                RequestId::Number(n) => n.to_string(),
-                RequestId::Null => "null".to_string(),
-            })
+            .map(|id| id.to_string())
             .unwrap_or_else(|| request.method.clone());
 
         let mut start_times = self.request_start_times.write().await;
@@ -341,11 +337,7 @@ impl Middleware for MetricsMiddleware {
         let request_key = request
             .id
             .as_ref()
-            .map(|id| match id {
-                RequestId::String(s) => s.clone(),
-                RequestId::Number(n) => n.to_string(),
-                RequestId::Null => "null".to_string(),
-            })
+            .map(|id| id.to_string())
             .unwrap_or_else(|| request.method.clone());
 
         let mut start_times = self.request_start_times.write().await;

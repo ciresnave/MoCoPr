@@ -177,7 +177,7 @@ async fn test_stdio_transport_error_handling() -> Result<()> {
 #[tokio::test]
 async fn test_stdio_transport_spawn_invalid_command() {
     // Try to spawn a non-existent command
-    let result = StdioTransport::spawn("nonexistent_command_12345", &[""; 0]).await;
+    let result = StdioTransport::spawn("nonexistent_command_12345", &[] as &[String]).await;
     assert!(result.is_err());
 }
 

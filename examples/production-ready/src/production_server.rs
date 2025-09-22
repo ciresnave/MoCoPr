@@ -439,11 +439,9 @@ mod tests {
 
     #[test]
     fn test_request_validation() {
-        use mocopr_core::RequestId;
-
         let valid_request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
-            id: Some(RequestId::Number(1)),
+            id: Some(serde_json::Value::Number(1.into())),
             method: "tools/call".to_string(),
             params: Some(json!({})),
         };
@@ -452,7 +450,7 @@ mod tests {
 
         let invalid_request = JsonRpcRequest {
             jsonrpc: "1.0".to_string(),
-            id: Some(RequestId::Number(1)),
+            id: Some(serde_json::Value::Number(1.into())),
             method: "tools/call".to_string(),
             params: Some(json!({})),
         };

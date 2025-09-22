@@ -3,7 +3,6 @@
 use crate::middleware::Middleware;
 use crate::registry::*;
 use axum::extract::ws::WebSocket;
-use bytes::{BufMut, BytesMut};
 use mocopr_core::monitoring::MonitoringSystem;
 use mocopr_core::prelude::*;
 use mocopr_core::utils::json;
@@ -119,6 +118,7 @@ impl McpServer {
         self.shutdown_tx
             .send(())
             .map_err(|e| Error::Internal(e.to_string()))
+            .map(|_| ())
     }
 
     /// Run the server using stdio transport
@@ -323,9 +323,7 @@ async fn handle_mcp_method(
     handler: &Arc<ServerMessageHandler>,
     json_msg: &serde_json::Value,
 ) -> Option<JsonRpcMessage> {
-    let id: Option<RequestId> = json_msg
-        .get("id")
-        .and_then(|v| serde_json::from_value(v.clone()).ok());
+    let id = json_msg.get("id").cloned();
 
     let method = match json_msg.get("method").and_then(|m| m.as_str()) {
         Some(method) => method,
@@ -494,9 +492,7 @@ async fn handle_websocket(mut socket: WebSocket, handler: Arc<ServerMessageHandl
             }
         };
 
-        let id: Option<RequestId> = json_msg
-            .get("id")
-            .and_then(|v| serde_json::from_value(v.clone()).ok());
+        let id = json_msg.get("id").cloned();
 
         if !initialized {
             if let Some("initialize") = json_msg.get("method").and_then(|m| m.as_str()) {
